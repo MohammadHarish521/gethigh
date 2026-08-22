@@ -3,62 +3,54 @@ import { Link } from "react-router-dom";
 const steps = [
   {
     n: "1",
-    title: "Submit",
-    body: "List your product with a starting bid of $1. That’s enough to join the board.",
+    title: "Dump anyone",
+    body: "Pay their current bid. They drop to $0 and slide to last — still on the board, just humiliated.",
+    tone: "text-fire-deep",
   },
   {
     n: "2",
-    title: "Bid",
-    body: "Anyone can raise the bid. Each new bid has to beat the current highest amount.",
+    title: "Or take the seat",
+    body: "Paste a URL or @handle and pay what you type. Highest bid sits at #1. Same link again only charges the difference.",
+    tone: "text-accent",
   },
   {
     n: "3",
-    title: "Rank",
-    body: "The leaderboard is ranked by bid. Whoever pays the most sits at #1.",
+    title: "Share the hit",
+    body: "Every dump gets a kill card. Copy it. Post it. That’s the whole sport.",
+    tone: "text-fg-strong",
   },
 ];
 
 export function HowItWorksPage() {
   return (
-    <div className="animate-fade-up">
-      <section className="max-w-xl">
-        <h1 className="text-[32px] font-semibold tracking-tight sm:text-4xl">
-          How it works
-        </h1>
-        <p className="mt-2 text-[15px] text-muted sm:text-base">
-          Products compete for visibility. The highest bid gets the top spot.
-        </p>
-      </section>
+    <div className="animate-fade-up mx-auto max-w-[756px] text-center">
+      <h1 className="font-display text-[44px] leading-[0.98] font-extrabold tracking-[-0.06em] text-fg sm:text-[72px]">
+        <span className="dump-word">Dump</span> is the game
+      </h1>
+      <p className="mx-auto mt-4 max-w-[500px] text-[16px] leading-[1.4] font-medium tracking-[-0.36px] text-muted sm:text-[18px]">
+        Other boards let you climb. Here you can knock whoever’s #1 to zero.
+      </p>
 
-      <ol className="mt-10 grid gap-3 sm:grid-cols-3">
+      <ol className="mt-10 space-y-4 text-left">
         {steps.map((step) => (
-          <li
-            key={step.n}
-            className="rounded-2xl border border-line bg-white px-5 py-6"
-          >
-            <div className="text-2xl font-semibold tabular-nums tracking-tight text-faint">
-              {step.n}
+          <li key={step.n} className="card px-6 py-6 sm:px-8">
+            <div className={`text-[15px] font-bold ${step.tone}`}>
+              #{step.n}
             </div>
-            <h2 className="mt-4 text-[15px] font-medium tracking-tight">{step.title}</h2>
-            <p className="mt-1.5 text-sm leading-relaxed text-muted">{step.body}</p>
+            <h2 className="mt-1 text-[20px] font-semibold tracking-[-0.6px] text-fg-strong sm:text-[26px]">
+              {step.title}
+            </h2>
+            <p className="mt-1 text-[15px] leading-[1.4] font-medium tracking-[-0.32px] text-muted">
+              {step.body}
+            </p>
           </li>
         ))}
       </ol>
 
-      <div className="mt-10 rounded-2xl border border-line bg-white px-5 py-6 sm:px-6">
-        <h2 className="text-[15px] font-medium tracking-tight">The rule</h2>
-        <p className="mt-2 max-w-lg text-sm leading-relaxed text-muted">
-          There is only one ranking signal: the current bid. No upvotes, no algorithms,
-          no recency boost on the main board. If you want #1, you outbid whoever is there.
-        </p>
-        <div className="mt-5 flex flex-wrap gap-3">
-          <Link to="/" className="btn-primary">
-            See the leaderboard
-          </Link>
-          <Link to="/submit" className="btn-secondary">
-            Submit a product
-          </Link>
-        </div>
+      <div className="mt-8 flex justify-center">
+        <Link to="/" className="btn-primary">
+          Get high
+        </Link>
       </div>
     </div>
   );

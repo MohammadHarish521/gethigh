@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./loadEnv.js";
 import crypto from "node:crypto";
 import path from "node:path";
 import { existsSync } from "node:fs";
@@ -12,6 +12,7 @@ import { seedIfEmpty } from "./seed.js";
 import { HttpError, asyncHandler, errorHandler } from "./http.js";
 import {
   clearSession,
+  ensureGuestUser,
   getUserFromRequest,
   hashPassword,
   normalizeEmail,
@@ -23,14 +24,19 @@ import {
 import {
   confirmPayment,
   createBidCheckout,
+  createDumpCheckout,
   createProductWithStartingBid,
   failPayment,
   findPaymentForWebhook,
   getProductRank,
+  hydrateListingCopy,
+  listRecentDumps,
   markWebhookProcessed,
 } from "./bidding.js";
 import { isPolarConfigured } from "./polar.js";
 import { hostnameFromUrl, minimumNextBid } from "./ranking.js";
+import { isPlaceholderDescription } from "./listingMeta.js";
+import { fetchSiteIcon } from "./favicon.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3001;
@@ -129,6 +135,28 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
 });
 
+app.get(
+  "/api/favicon",
+  asyncHandler(async (req, res) => {
+    const raw = String(req.query.u || "").trim();
+    if (!raw) {
+      res.status(400).json({ error: "Missing url." });
+      return;
+    }
+    const icon = await fetchSiteIcon(raw);
+    if (!icon) {
+      res.status(404).json({ error: "No icon." });
+      return;
+    }
+    const type =
+      icon.type === "image/svg+xml" ? "image/svg+xml; charset=utf-8" : icon.type;
+    res.setHeader("Content-Type", type);
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.send(icon.body);
+  }),
+);
+
 app.get("/api/config", (_req, res) => {
   res.json({
     mockPayments: !isPolarConfigured(),
@@ -196,23 +224,38 @@ app.get("/api/auth/me", (req, res) => {
   res.json({ user: user ? toPublicUser(user) : null });
 });
 
-app.get("/api/products", (_req, res) => {
-  const rows = db
-    .prepare(
-      `SELECT * FROM products
-       WHERE bid_count > 0
-       ORDER BY current_bid DESC, current_bid_at ASC, created_at ASC`,
-    )
-    .all() as ProductRow[];
+app.get(
+  "/api/products",
+  asyncHandler(async (_req, res) => {
+    let rows = db
+      .prepare(
+        `SELECT * FROM products
+         WHERE bid_count > 0
+         ORDER BY current_bid DESC, current_bid_at ASC, created_at ASC`,
+      )
+      .all() as ProductRow[];
 
-  res.json({ products: rows.map((row, index) => toProductDto(row, index + 1)) });
-});
+    const stale = rows
+      .filter((row) => isPlaceholderDescription(row.description))
+      .slice(0, 4);
+    if (stale.length > 0) {
+      await Promise.all(stale.map((row) => hydrateListingCopy(row)));
+      rows = db
+        .prepare(
+          `SELECT * FROM products
+           WHERE bid_count > 0
+           ORDER BY current_bid DESC, current_bid_at ASC, created_at ASC`,
+        )
+        .all() as ProductRow[];
+    }
+
+    res.json({ products: rows.map((row, index) => toProductDto(row, index + 1)) });
+  }),
+);
 
 app.get("/api/products/:id", (req, res, next) => {
   try {
-  const product = db
-    .prepare("SELECT * FROM products WHERE id = ?")
-    .get(req.params.id) as ProductRow | undefined;
+  const product = findProduct(String(req.params.id || ""));
 
   if (!product || product.bid_count <= 0) {
     throw new HttpError(404, "Product not found.");
@@ -220,7 +263,7 @@ app.get("/api/products/:id", (req, res, next) => {
 
   const history = db
     .prepare(
-      `SELECT b.id, b.amount, b.confirmed_at, b.created_at, u.name AS user_name
+      `SELECT b.id, b.amount, b.confirmed_at, b.created_at, b.kind, u.name AS user_name
        FROM bids b
        JOIN users u ON u.id = b.user_id
        WHERE b.product_id = ? AND b.status = 'succeeded'
@@ -231,6 +274,7 @@ app.get("/api/products/:id", (req, res, next) => {
     amount: number;
     confirmed_at: string | null;
     created_at: string;
+    kind: string | null;
     user_name: string;
   }>;
 
@@ -241,8 +285,33 @@ app.get("/api/products/:id", (req, res, next) => {
       amount: bid.amount,
       userName: bid.user_name,
       createdAt: bid.confirmed_at || bid.created_at,
+      kind: bid.kind === "dump" ? "dump" : "bid",
     })),
   });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/products/:id/go", (req, res, next) => {
+  try {
+    const product = findProduct(String(req.params.id || ""));
+    if (!product || product.bid_count <= 0) {
+      throw new HttpError(404, "Product not found.");
+    }
+
+    let dest = product.url.trim();
+    if (!/^https?:\/\//i.test(dest)) dest = `https://${dest}`;
+    const parsed = new URL(dest);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new HttpError(400, "Invalid listing URL.");
+    }
+
+    db.prepare(
+      "UPDATE products SET click_count = COALESCE(click_count, 0) + 1 WHERE id = ?",
+    ).run(product.id);
+
+    res.redirect(302, parsed.toString());
   } catch (error) {
     next(error);
   }
@@ -251,7 +320,7 @@ app.get("/api/products/:id", (req, res, next) => {
 app.post(
   "/api/products",
   asyncHandler(async (req, res) => {
-    const user = requireUser(req);
+    const user = ensureGuestUser(req, res);
     const result = await createProductWithStartingBid({
       name: String(req.body.name || ""),
       description: String(req.body.description || ""),
@@ -270,7 +339,7 @@ app.post(
 app.post(
   "/api/bids",
   asyncHandler(async (req, res) => {
-    const user = requireUser(req);
+    const user = ensureGuestUser(req, res);
     const result = await createBidCheckout({
       productId: String(req.body.productId || ""),
       amount: req.body.amount,
@@ -282,6 +351,38 @@ app.post(
   }),
 );
 
+app.post(
+  "/api/dumps",
+  asyncHandler(async (req, res) => {
+    const user = ensureGuestUser(req, res);
+    const result = await createDumpCheckout({
+      productId: String(req.body.productId || ""),
+      userId: user.id,
+      userEmail: user.email,
+      userName: user.name,
+    });
+    res.status(201).json(result);
+  }),
+);
+
+app.get("/api/dumps", (_req, res) => {
+  res.json({
+    dumps: listRecentDumps().map((row) => ({
+      id: row.id,
+      amount: row.amount,
+      rankBefore: row.dump_rank,
+      heldSeconds: row.dump_held_seconds,
+      createdAt: row.confirmed_at,
+      product: {
+        id: row.product_id,
+        name: row.product_name,
+        logoUrl: row.logo_url,
+        url: row.url,
+      },
+    })),
+  });
+});
+
 app.get("/api/me/bids", (req, res, next) => {
   try {
   const user = requireUser(req);
@@ -289,7 +390,7 @@ app.get("/api/me/bids", (req, res, next) => {
     .prepare(
       `SELECT
          b.id, b.amount, b.status, b.created_at, b.confirmed_at, b.payment_id,
-         p.id AS product_id, p.name AS product_name, p.logo_url, p.current_bid
+         p.id AS product_id, p.name AS product_name, p.logo_url, p.url AS product_url, p.current_bid
        FROM bids b
        JOIN products p ON p.id = b.product_id
        WHERE b.user_id = ?
@@ -305,6 +406,7 @@ app.get("/api/me/bids", (req, res, next) => {
     product_id: string;
     product_name: string;
     logo_url: string;
+    product_url: string;
     current_bid: number;
   }>;
 
@@ -320,6 +422,7 @@ app.get("/api/me/bids", (req, res, next) => {
         id: row.product_id,
         name: row.product_name,
         logoUrl: row.logo_url,
+        url: row.product_url,
         currentBid: row.current_bid,
         rank: getProductRank(row.product_id),
       },
@@ -332,12 +435,11 @@ app.get("/api/me/bids", (req, res, next) => {
 
 app.get("/api/payments/:id", (req, res, next) => {
   try {
-  const user = requireUser(req);
   const payment = db
     .prepare("SELECT * FROM payments WHERE id = ?")
     .get(req.params.id) as PaymentRow | undefined;
 
-  if (!payment || payment.user_id !== user.id) {
+  if (!payment) {
     throw new HttpError(404, "Payment not found.");
   }
 
@@ -364,6 +466,9 @@ app.get("/api/payments/:id", (req, res, next) => {
           id: bid.id,
           amount: bid.amount,
           status: bid.status,
+          kind: bid.kind === "dump" ? "dump" : "bid",
+          dumpRank: bid.dump_rank,
+          dumpHeldSeconds: bid.dump_held_seconds,
         }
       : null,
     product: product ? toProductDto(product, getProductRank(product.id)) : null,
@@ -384,12 +489,11 @@ app.post(
       throw new HttpError(403, "Mock payments are disabled when Polar is configured.");
     }
 
-    const user = requireUser(req);
     const payment = db
       .prepare("SELECT * FROM payments WHERE id = ?")
       .get(req.params.id) as PaymentRow | undefined;
 
-    if (!payment || payment.user_id !== user.id) {
+    if (!payment) {
       throw new HttpError(404, "Payment not found.");
     }
     if (payment.provider !== "mock") {
@@ -414,12 +518,11 @@ app.post(
       throw new HttpError(403, "Mock payments are disabled when Polar is configured.");
     }
 
-    const user = requireUser(req);
     const payment = db
       .prepare("SELECT * FROM payments WHERE id = ?")
       .get(req.params.id) as PaymentRow | undefined;
 
-    if (!payment || payment.user_id !== user.id) {
+    if (!payment) {
       throw new HttpError(404, "Payment not found.");
     }
 
@@ -443,13 +546,32 @@ if (existsSync(distDir)) {
 }
 
 app.listen(PORT, () => {
-  console.log(`BidTop API on http://localhost:${PORT}`);
+  console.log(`gethigh API on http://localhost:${PORT}`);
   console.log(
     isPolarConfigured()
       ? "Polar payments: enabled"
       : "Polar payments: not configured — using mock checkout",
   );
 });
+
+function findProduct(id: string) {
+  const needle = id.trim();
+  if (!needle) return undefined;
+
+  const byId = db
+    .prepare("SELECT * FROM products WHERE id = ?")
+    .get(needle) as ProductRow | undefined;
+  if (byId) return byId;
+
+  const prefixed = db
+    .prepare("SELECT * FROM products WHERE id = ?")
+    .get(`prod-${needle}`) as ProductRow | undefined;
+  if (prefixed) return prefixed;
+
+  return db
+    .prepare("SELECT * FROM products WHERE lower(name) = lower(?)")
+    .get(needle) as ProductRow | undefined;
+}
 
 function toProductDto(product: ProductRow, rank: number | null) {
   return {
@@ -464,7 +586,9 @@ function toProductDto(product: ProductRow, rank: number | null) {
     currentBid: product.current_bid,
     currentBidAt: product.current_bid_at,
     bidCount: product.bid_count,
+    clickCount: product.click_count ?? 0,
     minNextBid: minimumNextBid(product.current_bid),
+    dumpCost: product.current_bid >= 1 ? product.current_bid : null,
     rank,
     createdAt: product.created_at,
   };

@@ -77,6 +77,29 @@ export function requireUser(req: Request): UserRow {
   return user;
 }
 
+/** Anonymous browser session so bidding works without accounts. */
+export function ensureGuestUser(req: Request, res: Response): UserRow {
+  const existing = getUserFromRequest(req);
+  if (existing) return existing;
+
+  const id = crypto.randomUUID();
+  const user: UserRow = {
+    id,
+    email: `guest-${id}@guest.gethigh`,
+    name: "Guest",
+    password_hash: hashPassword(crypto.randomBytes(24).toString("hex")),
+    created_at: nowIso(),
+  };
+
+  db.prepare(
+    `INSERT INTO users (id, email, name, password_hash, created_at)
+     VALUES (?, ?, ?, ?, ?)`,
+  ).run(user.id, user.email, user.name, user.password_hash, user.created_at);
+
+  setSessionCookie(res, user.id);
+  return user;
+}
+
 export function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }

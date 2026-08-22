@@ -1,122 +1,151 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { BidButton } from "../components/BidButton";
+import { api } from "../api/client";
 import { BidHistory } from "../components/BidHistory";
-import { BidModal } from "../components/BidModal";
 import { EmptyState } from "../components/EmptyState";
+import { RankBadge } from "../components/FloatingMedal";
 import { ProductLogo } from "../components/ProductLogo";
-import { useStore } from "../store/Store";
-import { formatMoney, formatTimeAgo, plural } from "../utils/format";
+import type { BidHistoryItem, Product } from "../types";
+import { formatMoney, formatTimeAgo, outboundPath, plural } from "../utils/format";
 
 export function ProductPage() {
   const { id } = useParams();
-  const { products, bidsFor, placeBid, flashId } = useStore();
-  const [bidOpen, setBidOpen] = useState(false);
+  const [product, setProduct] = useState<Product | null>(null);
+  const [bids, setBids] = useState<BidHistoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [dumping, setDumping] = useState(false);
+  const [dumpError, setDumpError] = useState<string | null>(null);
 
-  const product = products.find((item) => item.id === id);
+  useEffect(() => {
+    if (!id) return;
+    setLoading(true);
+    api
+      .product(id)
+      .then((data) => {
+        setProduct(data.product);
+        setBids(data.bids);
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Product not found.");
+      })
+      .finally(() => setLoading(false));
+  }, [id]);
 
-  if (!product) {
+  async function onDump() {
+    if (!product) return;
+    setDumpError(null);
+    setDumping(true);
+    try {
+      const checkout = await api.createDump(product.id);
+      window.location.href = checkout.checkoutUrl;
+    } catch (err: unknown) {
+      setDumpError(
+        err instanceof Error ? err.message : "Could not start that dump.",
+      );
+      setDumping(false);
+    }
+  }
+
+  if (loading)
+    return <div className="card mx-auto h-64 max-w-[640px] animate-pulse" />;
+
+  if (error || !product) {
     return (
       <EmptyState
         icon="search"
         title="Product not found"
-        description="It may have been removed, or the link is incorrect."
+        description={error || "It may have been dumped off the board."}
         action={
           <Link to="/" className="btn-primary">
-            Back to explore
+            Back to the board
           </Link>
         }
       />
     );
   }
 
-  const bids = bidsFor(product.id);
-
   return (
-    <div className="animate-fade-up mx-auto max-w-xl">
-      <div
-        className={`rounded-2xl border px-5 py-8 sm:px-8 sm:py-10 ${
-          product.rank === 1 ? "border-line bg-warm" : "border-line bg-white"
-        } ${flashId === product.id ? "animate-rank-flash" : ""}`}
+    <div className="animate-fade-up mx-auto max-w-[640px]">
+      <section
+        className={`card relative px-6 py-8 text-center sm:px-10 ${
+          product.rank != null && product.rank <= 3 ? "pr-24 sm:pr-32" : ""
+        } ${
+          product.rank === 1
+            ? "card-rank-1"
+            : product.rank === 2
+              ? "card-rank-2"
+              : product.rank === 3
+                ? "card-rank-3"
+                : ""
+        }`}
       >
-        <ProductLogo src={product.logoUrl} name={product.name} size="lg" />
-
-        <div className="mt-5 flex flex-wrap items-center gap-2">
-          <h1 className="text-3xl font-semibold tracking-tight">{product.name}</h1>
-          {product.rank === 1 ? (
-            <span className="text-[11px] font-medium uppercase tracking-wide text-accent">
-              Top spot
-            </span>
+        {product.rank != null && product.rank <= 3 ? (
+          <div className="absolute top-5 right-5 sm:top-6 sm:right-6">
+            <RankBadge rank={product.rank} />
+          </div>
+        ) : null}
+        <div className="text-[19px] font-semibold tracking-[-0.7px] text-fg-strong sm:text-[30px]">
+          #{product.rank}
+        </div>
+        <div className="mt-4 flex justify-center">
+          <ProductLogo src={product.logoUrl} name={product.name} siteUrl={product.url} size="lg" />
+        </div>
+        <h1 className="mt-5 text-[26px] leading-[1.2] font-semibold tracking-[-0.78px] text-fg-strong sm:text-[32px]">
+          {product.name}
+        </h1>
+        <p className="mt-2 text-[15px] leading-[1.4] font-medium tracking-[-0.32px] text-muted">
+          {product.description}
+        </p>
+        <a
+          href={outboundPath(product.id)}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 inline-block text-[14px] text-muted hover:text-fg hover:underline"
+        >
+          {product.hostname}
+        </a>
+        <div className="display-num mt-8 text-[44px] sm:text-[68.59px]">
+          {formatMoney(product.currentBid)}
+        </div>
+        <p className="mt-2 text-[14px] tracking-[-0.26px] text-muted">
+          {plural(product.bidCount, "bid")}
+          {` · ${plural(product.clickCount, "click")}`}
+          {product.currentBidAt
+            ? ` · ${formatTimeAgo(product.currentBidAt)}`
+            : ""}
+        </p>
+        {dumpError ? (
+          <p className="mt-3 text-sm text-red-600">{dumpError}</p>
+        ) : null}
+        <div className="mt-6 flex flex-col items-center gap-2 sm:flex-row sm:justify-center">
+          <Link
+            to={`/?url=${encodeURIComponent(product.url)}`}
+            className="btn-primary"
+          >
+            Bid {formatMoney(product.minNextBid)}
+          </Link>
+          {product.dumpCost ? (
+            <button
+              type="button"
+              onClick={onDump}
+              disabled={dumping}
+              className="btn-fire"
+            >
+              {dumping
+                ? "Starting…"
+                : `Dump · ${formatMoney(product.dumpCost)}`}
+            </button>
           ) : null}
         </div>
+      </section>
 
-        <p className="mt-2 text-[15px] leading-relaxed text-muted">{product.description}</p>
-
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          <a
-            href={product.url}
-            target="_blank"
-            rel="noreferrer"
-            className="btn-secondary"
-          >
-            Visit website
-          </a>
-          <span className="text-sm text-faint">
-            {product.hostname}
-            <span className="mx-1.5">·</span>
-            {product.category}
-          </span>
-        </div>
-
-        <div className="mt-8 grid grid-cols-2 gap-3">
-          <div className="rounded-xl border border-line bg-page px-4 py-3">
-            <div className="text-xs text-muted">Current rank</div>
-            <div className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">
-              #{product.rank}
-            </div>
-          </div>
-          <div className="rounded-xl border border-line bg-page px-4 py-3">
-            <div className="text-xs text-muted">Highest bid</div>
-            <div className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">
-              {formatMoney(product.currentBid)}
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-5">
-          <BidButton size="lg" onClick={() => setBidOpen(true)}>
-            Bid
-          </BidButton>
-          <p className="mt-2 text-xs text-muted">
-            Next bid from {formatMoney(product.minNextBid)} · {plural(product.bidCount, "bid")}
-          </p>
-        </div>
-      </div>
-
-      <section className="mt-10">
-        <h2 className="mb-3 text-sm font-medium">Bid history</h2>
+      <section className="mt-8">
+        <h2 className="mb-3 px-1 text-[15px] font-semibold tracking-[-0.3px] text-fg-strong">
+          Bid history
+        </h2>
         <BidHistory bids={bids} />
       </section>
-
-      <section className="mt-10 rounded-2xl border border-line bg-white px-5 py-5">
-        <div className="text-xs font-medium uppercase tracking-wide text-muted">Creator</div>
-        <div className="mt-2 text-[15px] font-medium">{product.creatorName}</div>
-        <p className="mt-1 text-sm leading-relaxed text-muted">{product.creatorBio}</p>
-        <p className="mt-3 text-xs text-faint">
-          Listed {formatTimeAgo(product.createdAt)}
-          {product.currentBidAt ? ` · Leading bid ${formatTimeAgo(product.currentBidAt)}` : ""}
-        </p>
-      </section>
-
-      <BidModal
-        product={product}
-        open={bidOpen}
-        onClose={() => setBidOpen(false)}
-        onConfirm={(amount) => {
-          placeBid(product.id, amount);
-          setBidOpen(false);
-        }}
-      />
     </div>
   );
 }

@@ -1,82 +1,222 @@
-import { useMemo, useState } from "react";
-import { BidModal } from "../components/BidModal";
-import { FilterBar } from "../components/FilterBar";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { api } from "../api/client";
+import { DumpExplainer, DumpFeed, RecentDumps } from "../components/DumpFeed";
 import { Leaderboard } from "../components/Leaderboard";
-import { useStore } from "../store/Store";
-import type { Product, SortKey } from "../types";
+import { OutbidBox } from "../components/OutbidBox";
+import { useProducts } from "../hooks/useProducts";
+import type { Product, RecentDump } from "../types";
+import { listingsMatch, parseListingInput } from "../utils/format";
+import { makeLogo } from "../utils/logo";
 
 export function HomePage() {
-  const { products, flashId, placeBid } = useStore();
-  const [sort, setSort] = useState<SortKey>("highest");
-  const [query, setQuery] = useState("");
-  const [bidProduct, setBidProduct] = useState<Product | null>(null);
+  const { products, loading, error: loadError } = useProducts();
+  const [searchParams] = useSearchParams();
+  const [url, setUrl] = useState(searchParams.get("url") ?? "");
+  const [amount, setAmount] = useState(1);
+  const [error, setError] = useState<string | null>(null);
+  const [dumpingId, setDumpingId] = useState<string | null>(null);
+  const [dumps, setDumps] = useState<RecentDump[]>([]);
 
-  const visible = useMemo(
-    () => sortProducts(products, sort, query),
-    [products, sort, query],
-  );
+  const topBid = products[0]?.currentBid ?? 0;
+  const claimPrice = Math.max(1, topBid + 1);
+
+  useEffect(() => {
+    setAmount(claimPrice);
+  }, [claimPrice]);
+
+  useEffect(() => {
+    const fromQuery = searchParams.get("url");
+    if (fromQuery) setUrl(fromQuery);
+  }, [searchParams]);
+
+  useEffect(() => {
+    api
+      .recentDumps()
+      .then((data) => setDumps(data.dumps))
+      .catch(() => setDumps([]));
+  }, []);
+
+  const existing = findExisting(products, url);
+  const previewRank = rankForAmount(products, amount, existing?.id);
+
+  async function onDump(product: Product) {
+    setError(null);
+    setDumpingId(product.id);
+    try {
+      const checkout = await api.createDump(product.id);
+      window.location.href = checkout.checkoutUrl;
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : "Could not start that dump.",
+      );
+      setDumpingId(null);
+    }
+  }
 
   return (
     <div className="animate-fade-up">
-      <section className="mb-10 max-w-xl">
-        <h1 className="text-[32px] font-semibold tracking-tight sm:text-4xl">
-          Bid your way to the top.
-        </h1>
-        <p className="mt-2 text-[15px] text-muted sm:text-base">
-          The highest bid gets the top spot.
-        </p>
-      </section>
-
-      <FilterBar sort={sort} onSort={setSort} query={query} onQuery={setQuery} />
-
-      <Leaderboard
-        products={visible}
-        onBid={setBidProduct}
-        flashId={flashId}
-        query={query}
-      />
-
-      <BidModal
-        product={bidProduct}
-        open={Boolean(bidProduct)}
-        onClose={() => setBidProduct(null)}
-        onConfirm={(amount) => {
-          if (!bidProduct) return;
-          placeBid(bidProduct.id, amount);
-          setBidProduct(null);
+      <OutbidBox
+        claimPrice={claimPrice}
+        amount={amount}
+        onAmount={(value) => {
+          setAmount(value);
+          setError(null);
+        }}
+        url={url}
+        onUrl={(value) => {
+          setUrl(value);
+          setError(null);
+        }}
+        previewRank={previewRank}
+        existingBid={existing?.currentBid ?? null}
+        error={error}
+        liveCount={products.length}
+        onSubmit={async () => {
+          try {
+            const listing = parseListingInput(url);
+            const match = findExisting(products, url);
+            const checkout = match
+              ? await api.createBid(match.id, amount)
+              : await api.submitProduct({
+                  name: listing.name,
+                  description: `Listed from ${listing.hostname}.`,
+                  url: listing.url,
+                  logoUrl: makeLogo(listing.name, "#508200"),
+                  creatorName: listing.name,
+                  startingBid: amount,
+                });
+            window.location.href = checkout.checkoutUrl;
+          } catch (err: unknown) {
+            setError(
+              err instanceof Error ? err.message : "Could not place that bid.",
+            );
+          }
         }}
       />
+
+      <div className="mt-8 lg:mt-10">
+        <div className="hidden lg:grid lg:grid-cols-[240px_minmax(0,1fr)_240px] lg:items-start lg:gap-4 xl:grid-cols-[260px_minmax(0,1fr)_260px] xl:gap-5">
+          <aside className="sticky top-24">
+            <DumpExplainer />
+          </aside>
+          <div className="min-w-0">
+            <Board
+              loading={loading}
+              loadError={loadError}
+              products={products}
+              onBid={(product) => {
+                setUrl(product.url);
+                setAmount(product.minNextBid);
+                setError(null);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              onTakeOne={() => {
+                setAmount(claimPrice);
+                setError(null);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              onDump={onDump}
+              dumpingId={dumpingId}
+            />
+          </div>
+          <aside className="sticky top-24">
+            <RecentDumps dumps={dumps} />
+          </aside>
+        </div>
+
+        <div className="lg:hidden">
+          <Board
+            loading={loading}
+            loadError={loadError}
+            products={products}
+            onBid={(product) => {
+              setUrl(product.url);
+              setAmount(product.minNextBid);
+              setError(null);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            onTakeOne={() => {
+              setAmount(claimPrice);
+              setError(null);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            onDump={onDump}
+            dumpingId={dumpingId}
+          />
+          <div className="mt-6">
+            <DumpFeed dumps={dumps} />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
-function sortProducts(products: Product[], sort: SortKey, query: string) {
-  const needle = query.trim().toLowerCase();
-  const filtered = needle
-    ? products.filter((product) =>
-        [product.name, product.description, product.category, product.hostname]
-          .join(" ")
-          .toLowerCase()
-          .includes(needle),
-      )
-    : products;
-
-  const next = [...filtered];
-  if (sort === "newest") {
-    next.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
-  } else if (sort === "trending") {
-    next.sort((a, b) => trendingScore(b) - trendingScore(a));
-  } else {
-    next.sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
+function findExisting(products: Product[], raw: string) {
+  if (!raw.trim()) return null;
+  try {
+    const listing = parseListingInput(raw);
+    return products.find((product) => listingsMatch(product, listing)) ?? null;
+  } catch {
+    return null;
   }
-  return next;
 }
 
-function trendingScore(product: Product) {
-  const hours = product.currentBidAt
-    ? Math.max(1, (Date.now() - new Date(product.currentBidAt).getTime()) / 3_600_000)
-    : 48;
-  return product.bidCount * 4 + product.currentBid / 25 - hours;
+function rankForAmount(
+  products: Product[],
+  amount: number,
+  excludeId?: string,
+) {
+  return (
+    products.filter(
+      (product) => product.id !== excludeId && product.currentBid >= amount,
+    ).length + 1
+  );
+}
+
+function Board({
+  loading,
+  loadError,
+  products,
+  onBid,
+  onTakeOne,
+  onDump,
+  dumpingId,
+}: {
+  loading: boolean;
+  loadError: string | null;
+  products: Product[];
+  onBid: (product: Product) => void;
+  onTakeOne: () => void;
+  onDump: (product: Product) => void;
+  dumpingId: string | null;
+}) {
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-3 sm:gap-[14px]">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={index} className="card h-[132px] animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="card px-4 py-10 text-center text-sm text-muted">
+        {loadError}
+      </div>
+    );
+  }
+
+  return (
+    <Leaderboard
+      products={products}
+      onBid={onBid}
+      onTakeOne={onTakeOne}
+      onDump={onDump}
+      dumpingId={dumpingId}
+    />
+  );
 }

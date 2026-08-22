@@ -18,3 +18,19 @@ export function hostnameFromUrl(url: string) {
     return url;
   }
 }
+
+export function listingKey(url: string) {
+  const withProtocol = /^https?:\/\//i.test(url.trim())
+    ? url.trim()
+    : `https://${url.trim()}`;
+  const parsed = new URL(withProtocol);
+  const host = parsed.hostname.replace(/^www\./i, "").toLowerCase();
+  const path = parsed.pathname.replace(/\/$/, "");
+  return `${host}${path}${parsed.search}`.toLowerCase();
+}
+
+export function raiseCharge(currentBid: number, target: number) {
+  const floor = Math.max(0, currentBid);
+  if (!Number.isInteger(target) || target < minimumNextBid(floor)) return null;
+  return target - floor;
+}

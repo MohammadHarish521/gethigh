@@ -2,24 +2,21 @@ type RankNumberProps = {
   rank: number | null;
 };
 
-export function RankNumber({ rank }: RankNumberProps) {
-  if (rank == null) return <div className="w-9 shrink-0 sm:w-10" />;
+const rankTone: Record<number, string> = {
+  1: "font-extrabold text-[#b8860b]",
+  2: "font-extrabold text-[#4b5563]",
+  3: "font-extrabold text-[#9a5a22]",
+};
 
-  const tone =
-    rank === 1
-      ? "text-[26px] font-semibold tracking-tight text-ink sm:text-[28px]"
-      : rank === 2
-        ? "text-[22px] font-semibold tracking-tight text-neutral-600 sm:text-2xl"
-        : rank === 3
-          ? "text-xl font-medium tracking-tight text-neutral-500 sm:text-[22px]"
-          : "text-[17px] font-medium text-faint";
+export function RankNumber({ rank }: RankNumberProps) {
+  if (rank == null) return null;
 
   return (
-    <div
-      className={`w-9 shrink-0 text-center tabular-nums sm:w-10 ${tone}`}
+    <span
+      className={`shrink-0 text-[26px] tracking-[-0.04em] ${rankTone[rank] ?? "font-semibold text-fg-strong"}`}
       aria-label={`Rank ${rank}`}
     >
-      {rank}
-    </div>
+      #{rank}
+    </span>
   );
 }

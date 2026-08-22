@@ -1,21 +1,44 @@
+import { useEffect, useState } from "react";
+import { makeLogo, siteIconPath } from "../utils/logo";
+
 type ProductLogoProps = {
-  src: string;
+  src?: string;
   name: string;
-  size?: "sm" | "md" | "lg";
+  siteUrl?: string;
+  size?: "xs" | "sm" | "md" | "lg";
 };
 
 const sizes = {
-  sm: "h-11 w-11 rounded-[10px]",
-  md: "h-14 w-14 rounded-xl",
-  lg: "h-20 w-20 rounded-2xl",
+  xs: "h-7 w-7 rounded-[8px]",
+  sm: "h-12 w-12 rounded-[12px]",
+  md: "h-16 w-16 rounded-[14px]",
+  lg: "h-20 w-20 rounded-[16px]",
 };
 
-export function ProductLogo({ src, name, size = "sm" }: ProductLogoProps) {
+export function ProductLogo({
+  src,
+  name,
+  siteUrl,
+  size = "md",
+}: ProductLogoProps) {
+  const fallback = src?.startsWith("data:") ? src : makeLogo(name, "#508200");
+  const icon = siteUrl
+    ? siteIconPath(siteUrl)
+    : src && !src.startsWith("data:")
+      ? src
+      : "";
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [siteUrl, src]);
+
   return (
     <img
-      src={src}
+      src={!failed && icon ? icon : fallback}
       alt={`${name} logo`}
-      className={`${sizes[size]} border border-line bg-white object-cover shadow-[var(--shadow-card)]`}
+      onError={() => setFailed(true)}
+      className={`${sizes[size]} shrink-0 border border-black/5 bg-white object-contain p-0.5`}
     />
   );
 }

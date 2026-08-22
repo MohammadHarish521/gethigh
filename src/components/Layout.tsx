@@ -1,28 +1,26 @@
-import { useEffect, type ReactNode } from "react";
-import { useLocation } from "react-router-dom";
+import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { Navbar } from "./Navbar";
-import { Toast } from "./Toast";
 
 export function Layout({ children }: { children: ReactNode }) {
-  const { pathname } = useLocation();
-
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [pathname]);
-
   return (
-    <div className="flex min-h-svh flex-col bg-page text-ink">
+    <div className="flex min-h-svh flex-col bg-bg text-fg">
       <Navbar />
-      <main className="mx-auto w-full max-w-[800px] flex-1 px-4 py-10 sm:py-14">
+      <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 pt-10 pb-10 sm:pt-[60px]">
         {children}
       </main>
-      <footer className="border-t border-line">
-        <div className="mx-auto flex max-w-[800px] flex-col gap-1 px-4 py-8 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
-          <span className="font-medium text-ink">BidTop</span>
-          <span>The highest bid gets the top spot.</span>
-        </div>
+      <footer className="px-4 pt-8 pb-16 text-center text-[14px] tracking-[-0.26px] text-muted">
+        <p>gethigh · Dump #1. They hit $0. Then take the seat.</p>
+        <nav className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+          <Link to="/how-it-works" className="hover:text-fg hover:underline">
+            How it works
+          </Link>
+          <Link to="/" className="hover:text-fg hover:underline">
+            Leaderboard
+          </Link>
+          <span>Payments by Polar</span>
+        </nav>
       </footer>
-      <Toast />
     </div>
   );
 }

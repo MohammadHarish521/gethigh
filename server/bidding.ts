@@ -8,7 +8,16 @@ import {
 } from "./db.js";
 import { HttpError } from "./http.js";
 import { createPolarCheckout, getAppUrl, isPolarConfigured } from "./polar.js";
-import { minimumNextBid, parseBidAmount } from "./ranking.js";
+import {
+  listingKey,
+  minimumNextBid,
+  parseBidAmount,
+  raiseCharge,
+} from "./ranking.js";
+import {
+  fetchListingMeta,
+  isPlaceholderDescription,
+} from "./listingMeta.js";
 
 export type ConfirmResult = {
   alreadyProcessed: boolean;
@@ -36,6 +45,10 @@ function getPayment(id: string) {
     | undefined;
 }
 
+function bidKind(bid: BidRow) {
+  return bid.kind === "dump" ? "dump" : "bid";
+}
+
 export function getProductRank(productId: string) {
   const ranked = db
     .prepare(
@@ -47,6 +60,66 @@ export function getProductRank(productId: string) {
 
   const index = ranked.findIndex((row) => row.id === productId);
   return index === -1 ? null : index + 1;
+}
+
+function findLiveProductByUrl(url: string) {
+  let key: string;
+  try {
+    key = listingKey(url);
+  } catch {
+    return undefined;
+  }
+
+  const rows = db
+    .prepare("SELECT * FROM products WHERE bid_count > 0")
+    .all() as ProductRow[];
+
+  return rows.find((row) => {
+    try {
+      return listingKey(row.url) === key;
+    } catch {
+      return false;
+    }
+  });
+}
+
+function insertCheckoutRows(input: {
+  bidId: string;
+  paymentId: string;
+  productId: string;
+  userId: string;
+  amount: number;
+  paymentAmount?: number;
+  kind: "bid" | "dump";
+  createdAt: string;
+  provider: "polar" | "mock";
+}) {
+  const paymentAmount = input.paymentAmount ?? input.amount;
+
+  db.prepare(
+    `INSERT INTO bids (id, product_id, user_id, amount, status, payment_id, created_at, kind)
+     VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)`,
+  ).run(
+    input.bidId,
+    input.productId,
+    input.userId,
+    input.amount,
+    input.paymentId,
+    input.createdAt,
+    input.kind,
+  );
+
+  db.prepare(
+    `INSERT INTO payments (id, bid_id, user_id, amount, status, provider, created_at)
+     VALUES (?, ?, ?, ?, 'pending', ?, ?)`,
+  ).run(
+    input.paymentId,
+    input.bidId,
+    input.userId,
+    paymentAmount,
+    input.provider,
+    input.createdAt,
+  );
 }
 
 export async function createBidCheckout(input: {
@@ -66,8 +139,9 @@ export async function createBidCheckout(input: {
     throw new HttpError(404, "Product not found.");
   }
 
-  const minBid = minimumNextBid(product.current_bid);
-  if (amount < minBid) {
+  const charge = raiseCharge(product.current_bid, amount);
+  if (charge === null) {
+    const minBid = minimumNextBid(product.current_bid);
     throw new HttpError(
       400,
       `Bid must be at least $${minBid}. Current highest bid is $${product.current_bid}.`,
@@ -79,19 +153,65 @@ export async function createBidCheckout(input: {
   const createdAt = nowIso();
   const provider = isPolarConfigured() ? "polar" : "mock";
 
-  const insert = db.transaction(() => {
-    db.prepare(
-      `INSERT INTO bids (id, product_id, user_id, amount, status, payment_id, created_at)
-       VALUES (?, ?, ?, ?, 'pending', ?, ?)`,
-    ).run(bidId, product.id, input.userId, amount, paymentId, createdAt);
+  db.transaction(() => {
+    insertCheckoutRows({
+      bidId,
+      paymentId,
+      productId: product.id,
+      userId: input.userId,
+      amount,
+      paymentAmount: charge,
+      kind: "bid",
+      createdAt,
+      provider,
+    });
+  })();
 
-    db.prepare(
-      `INSERT INTO payments (id, bid_id, user_id, amount, status, provider, created_at)
-       VALUES (?, ?, ?, ?, 'pending', ?, ?)`,
-    ).run(paymentId, bidId, input.userId, amount, provider, createdAt);
+  return finalizeCheckout({
+    paymentId,
+    bidId,
+    product,
+    amount: charge,
+    userId: input.userId,
+    userEmail: input.userEmail,
+    userName: input.userName,
+    provider,
+    kind: "bid",
   });
+}
 
-  insert();
+export async function createDumpCheckout(input: {
+  productId: string;
+  userId: string;
+  userEmail: string;
+  userName: string;
+}) {
+  const product = getProduct(input.productId);
+  if (!product || product.bid_count <= 0) {
+    throw new HttpError(404, "Product not found.");
+  }
+  if (product.current_bid < 1) {
+    throw new HttpError(400, "They’re already on the floor.");
+  }
+
+  const amount = product.current_bid;
+  const bidId = crypto.randomUUID();
+  const paymentId = crypto.randomUUID();
+  const createdAt = nowIso();
+  const provider = isPolarConfigured() ? "polar" : "mock";
+
+  db.transaction(() => {
+    insertCheckoutRows({
+      bidId,
+      paymentId,
+      productId: product.id,
+      userId: input.userId,
+      amount,
+      kind: "dump",
+      createdAt,
+      provider,
+    });
+  })();
 
   return finalizeCheckout({
     paymentId,
@@ -102,6 +222,7 @@ export async function createBidCheckout(input: {
     userEmail: input.userEmail,
     userName: input.userName,
     provider,
+    kind: "dump",
   });
 }
 
@@ -145,6 +266,22 @@ export async function createProductWithStartingBid(input: {
     throw new HttpError(400, "Enter a valid website URL.");
   }
 
+  const meta = await fetchListingMeta(url);
+  const resolvedName = (meta.title || name).slice(0, 80);
+  const resolvedDescription = (meta.description || description).slice(0, 500);
+
+  const existing = findLiveProductByUrl(url);
+  if (existing) {
+    const checkout = await createBidCheckout({
+      productId: existing.id,
+      userId: input.userId,
+      userEmail: input.userEmail,
+      userName: input.userName,
+      amount,
+    });
+    return { ...checkout, productId: existing.id };
+  }
+
   const productId = crypto.randomUUID();
   const bidId = crypto.randomUUID();
   const paymentId = crypto.randomUUID();
@@ -159,8 +296,8 @@ export async function createProductWithStartingBid(input: {
        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, 0, ?)`,
     ).run(
       productId,
-      name,
-      description,
+      resolvedName,
+      resolvedDescription,
       url,
       logoUrl,
       creatorName,
@@ -168,15 +305,16 @@ export async function createProductWithStartingBid(input: {
       createdAt,
     );
 
-    db.prepare(
-      `INSERT INTO bids (id, product_id, user_id, amount, status, payment_id, created_at)
-       VALUES (?, ?, ?, ?, 'pending', ?, ?)`,
-    ).run(bidId, productId, input.userId, amount, paymentId, createdAt);
-
-    db.prepare(
-      `INSERT INTO payments (id, bid_id, user_id, amount, status, provider, created_at)
-       VALUES (?, ?, ?, ?, 'pending', ?, ?)`,
-    ).run(paymentId, bidId, input.userId, amount, provider, createdAt);
+    insertCheckoutRows({
+      bidId,
+      paymentId,
+      productId,
+      userId: input.userId,
+      amount,
+      kind: "bid",
+      createdAt,
+      provider,
+    });
   });
 
   insert();
@@ -193,9 +331,26 @@ export async function createProductWithStartingBid(input: {
     userEmail: input.userEmail,
     userName: input.userName,
     provider,
+    kind: "bid",
   });
 
   return { ...checkout, productId };
+}
+
+export async function hydrateListingCopy(product: ProductRow) {
+  if (!isPlaceholderDescription(product.description)) return product;
+
+  const meta = await fetchListingMeta(product.url);
+  const name = (meta.title || product.name).slice(0, 80);
+  const description = (meta.description || product.description).slice(0, 500);
+  if (name === product.name && description === product.description) return product;
+
+  db.prepare("UPDATE products SET name = ?, description = ? WHERE id = ?").run(
+    name,
+    description,
+    product.id,
+  );
+  return { ...product, name, description };
 }
 
 async function finalizeCheckout(input: {
@@ -207,18 +362,23 @@ async function finalizeCheckout(input: {
   userEmail: string;
   userName: string;
   provider: "polar" | "mock";
+  kind: "bid" | "dump";
 }) {
+  const productName =
+    input.kind === "dump" ? `Dump ${input.product.name}` : input.product.name;
+
   if (input.provider === "polar") {
     try {
       const checkout = await createPolarCheckout({
         paymentId: input.paymentId,
         bidId: input.bidId,
         productId: input.product.id,
-        productName: input.product.name,
+        productName,
         amountDollars: input.amount,
         userId: input.userId,
         userEmail: input.userEmail,
         userName: input.userName,
+        kind: input.kind,
       });
 
       db.prepare(
@@ -230,6 +390,7 @@ async function finalizeCheckout(input: {
         bidId: input.bidId,
         checkoutUrl: checkout.url,
         mock: false,
+        kind: input.kind,
       };
     } catch (error) {
       db.transaction(() => {
@@ -256,6 +417,7 @@ async function finalizeCheckout(input: {
     bidId: input.bidId,
     checkoutUrl,
     mock: true,
+    kind: input.kind,
   };
 }
 
@@ -273,7 +435,8 @@ export function confirmPayment(
       if (!bid || !product) throw new HttpError(404, "Bid not found.");
       return {
         alreadyProcessed: true,
-        becameNumberOne: getProductRank(product.id) === 1,
+        becameNumberOne:
+          bidKind(bid) === "bid" && getProductRank(product.id) === 1,
         product,
         bid,
         payment,
@@ -305,22 +468,55 @@ export function confirmPayment(
       payment.id,
     );
 
-    db.prepare(
-      `UPDATE bids
-       SET status = 'succeeded', confirmed_at = ?
-       WHERE id = ?`,
-    ).run(processedAt, bid.id);
+    if (bidKind(bid) === "dump") {
+      const canDump =
+        product.current_bid >= 1 && product.current_bid <= bid.amount;
 
-    if (bid.amount > product.current_bid) {
-      db.prepare(
-        `UPDATE products
-         SET current_bid = ?, current_bid_at = ?, bid_count = bid_count + 1
-         WHERE id = ?`,
-      ).run(bid.amount, processedAt, product.id);
+      if (canDump) {
+        const rankBefore = getProductRank(product.id);
+        const heldSeconds = product.current_bid_at
+          ? Math.max(
+              0,
+              Math.floor(
+                (Date.now() - new Date(product.current_bid_at).getTime()) / 1000,
+              ),
+            )
+          : 0;
+
+        db.prepare(
+          `UPDATE bids
+           SET status = 'succeeded', confirmed_at = ?, dump_rank = ?, dump_held_seconds = ?
+           WHERE id = ?`,
+        ).run(processedAt, rankBefore, heldSeconds, bid.id);
+
+        db.prepare(
+          `UPDATE products
+           SET current_bid = 0, current_bid_at = ?
+           WHERE id = ?`,
+        ).run(processedAt, product.id);
+      } else {
+        db.prepare(
+          `UPDATE bids SET status = 'succeeded', confirmed_at = ? WHERE id = ?`,
+        ).run(processedAt, bid.id);
+      }
     } else {
       db.prepare(
-        `UPDATE products SET bid_count = bid_count + 1 WHERE id = ?`,
-      ).run(product.id);
+        `UPDATE bids
+         SET status = 'succeeded', confirmed_at = ?
+         WHERE id = ?`,
+      ).run(processedAt, bid.id);
+
+      if (bid.amount > product.current_bid) {
+        db.prepare(
+          `UPDATE products
+           SET current_bid = ?, current_bid_at = ?, bid_count = bid_count + 1
+           WHERE id = ?`,
+        ).run(bid.amount, processedAt, product.id);
+      } else {
+        db.prepare(
+          `UPDATE products SET bid_count = bid_count + 1 WHERE id = ?`,
+        ).run(product.id);
+      }
     }
 
     const updatedProduct = getProduct(product.id)!;
@@ -329,7 +525,8 @@ export function confirmPayment(
 
     return {
       alreadyProcessed: false,
-      becameNumberOne: getProductRank(updatedProduct.id) === 1,
+      becameNumberOne:
+        bidKind(updatedBid) === "bid" && getProductRank(updatedProduct.id) === 1,
       product: updatedProduct,
       bid: updatedBid,
       payment: updatedPayment,
@@ -388,4 +585,29 @@ export function markWebhookProcessed(eventId: string) {
     )
     .run(eventId, nowIso());
   return result.changes > 0;
+}
+
+export function listRecentDumps(limit = 8) {
+  return db
+    .prepare(
+      `SELECT
+         b.id, b.amount, b.dump_rank, b.dump_held_seconds, b.confirmed_at,
+         p.id AS product_id, p.name AS product_name, p.logo_url, p.url
+       FROM bids b
+       JOIN products p ON p.id = b.product_id
+       WHERE b.kind = 'dump' AND b.status = 'succeeded' AND b.dump_rank IS NOT NULL
+       ORDER BY b.confirmed_at DESC
+       LIMIT ?`,
+    )
+    .all(limit) as Array<{
+    id: string;
+    amount: number;
+    dump_rank: number | null;
+    dump_held_seconds: number | null;
+    confirmed_at: string | null;
+    product_id: string;
+    product_name: string;
+    logo_url: string;
+    url: string;
+  }>;
 }

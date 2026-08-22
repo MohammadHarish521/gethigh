@@ -46,18 +46,15 @@ export function MockCheckoutPage() {
 
   return (
     <div className="mx-auto max-w-md">
-      <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-        Development checkout. Polar credentials are not configured, so this mock
-        payment stands in for Polar Checkout.
+      <div className="mb-3 rounded-full bg-orange-soft px-4 py-2 text-xs font-medium text-fire-deep">
+        Development checkout. Polar is not configured, so this mock payment stands in.
       </div>
-      <div className="rounded-md border border-line bg-white p-5">
-        <h1 className="text-lg font-semibold tracking-tight">Complete bid payment</h1>
+      <div className="card p-6">
+        <h1 className="font-display text-2xl font-extrabold tracking-[-0.06em]">Complete payment</h1>
         <p className="mt-1 text-sm text-muted">
-          {amount !== null
-            ? `Charge ${formatMoney(amount)} for this bid.`
-            : "Loading payment…"}
+          {amount !== null ? `Charge ${formatMoney(amount)}.` : "Loading payment…"}
         </p>
-        {error ? <p className="mt-3 text-sm text-accent">{error}</p> : null}
+        {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
         <div className="mt-5 flex flex-col gap-2">
           <button
             type="button"
@@ -71,13 +68,13 @@ export function MockCheckoutPage() {
             type="button"
             onClick={fail}
             disabled={loading !== null}
-            className="rounded-md border border-line px-3 py-1.5 text-sm hover:bg-neutral-50"
+            className="btn-secondary"
           >
             {loading === "fail" ? "Failing…" : "Simulate failed payment"}
           </button>
         </div>
         <p className="mt-4 text-center text-xs text-muted">
-          <Link to="/" className="hover:text-ink">
+          <Link to="/" className="hover:text-fg">
             Cancel and return
           </Link>
         </p>

@@ -99,6 +99,17 @@ db.exec(`
     WHERE polar_order_id IS NOT NULL;
 `);
 
+function addColumn(table: string, column: string, definition: string) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (cols.some((col) => col.name === column)) return;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+
+addColumn("bids", "kind", "TEXT NOT NULL DEFAULT 'bid'");
+addColumn("bids", "dump_rank", "INTEGER");
+addColumn("bids", "dump_held_seconds", "INTEGER");
+addColumn("products", "click_count", "INTEGER NOT NULL DEFAULT 0");
+
 export type UserRow = {
   id: string;
   email: string;
@@ -118,8 +129,11 @@ export type ProductRow = {
   current_bid: number;
   current_bid_at: string | null;
   bid_count: number;
+  click_count: number;
   created_at: string;
 };
+
+export type BidKind = "bid" | "dump";
 
 export type BidRow = {
   id: string;
@@ -130,6 +144,9 @@ export type BidRow = {
   payment_id: string | null;
   created_at: string;
   confirmed_at: string | null;
+  kind: BidKind;
+  dump_rank: number | null;
+  dump_held_seconds: number | null;
 };
 
 export type PaymentRow = {

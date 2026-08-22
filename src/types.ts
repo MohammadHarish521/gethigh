@@ -11,25 +11,39 @@ export type Product = {
   description: string;
   url: string;
   hostname: string;
-  category: string;
   logoUrl: string;
   creatorName: string;
-  creatorBio: string;
   creatorId: string | null;
   currentBid: number;
   currentBidAt: string | null;
   bidCount: number;
   minNextBid: number;
+  dumpCost: number | null;
   rank: number | null;
+  clickCount: number;
   createdAt: string;
 };
 
 export type BidHistoryItem = {
   id: string;
-  productId?: string;
   amount: number;
   userName: string;
   createdAt: string;
+  kind?: "bid" | "dump";
+};
+
+export type RecentDump = {
+  id: string;
+  amount: number;
+  rankBefore: number | null;
+  heldSeconds: number | null;
+  createdAt: string | null;
+  product: {
+    id: string;
+    name: string;
+    logoUrl: string;
+    url?: string;
+  };
 };
 
 export type UserBid = {
@@ -43,6 +57,7 @@ export type UserBid = {
     id: string;
     name: string;
     logoUrl: string;
+    url?: string;
     currentBid: number;
     rank: number | null;
   };
@@ -54,6 +69,7 @@ export type CheckoutResponse = {
   checkoutUrl: string;
   mock: boolean;
   productId?: string;
+  kind?: "bid" | "dump";
 };
 
 export type PaymentStatus = {
@@ -65,9 +81,14 @@ export type PaymentStatus = {
     createdAt: string;
     processedAt: string | null;
   };
-  bid: { id: string; amount: number; status: string } | null;
+  bid: {
+    id: string;
+    amount: number;
+    status: string;
+    kind?: "bid" | "dump";
+    dumpRank?: number | null;
+    dumpHeldSeconds?: number | null;
+  } | null;
   product: Product | null;
   becameNumberOne: boolean;
 };
-
-export type SortKey = "trending" | "highest" | "newest";

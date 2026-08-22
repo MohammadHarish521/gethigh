@@ -39,7 +39,7 @@ export function Modal({ open, onClose, children, labelledBy }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}
-        className="animate-modal-in relative w-full max-w-md rounded-2xl border border-line bg-white p-6 shadow-[var(--shadow-modal)]"
+        className="animate-modal-in relative w-full max-w-md rounded-[28px] bg-white p-6 shadow-[var(--shadow-modal)]"
       >
         {children}
       </div>
