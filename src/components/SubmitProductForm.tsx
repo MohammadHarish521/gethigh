@@ -126,7 +126,8 @@ export function SubmitProductForm() {
           className="input"
         />
         <p className="mt-1 text-xs text-muted">
-          Minimum is ${MIN_BID}. You’ll pay this to enter the board.
+          Minimum is ${MIN_BID}. You’ll pay this in full to enter the board, and
+          the spot bleeds 5% a day after that.
         </p>
       </Field>
       {error ? <p className="text-sm text-danger">{error}</p> : null}

@@ -171,10 +171,10 @@ export function seedIfEmpty() {
   const insertProduct = db.prepare(
     `INSERT INTO products (
        id, name, description, url, logo_url, creator_name, creator_id,
-       current_bid, current_bid_at, bid_count, created_at
+       current_bid, current_bid_at, decayed_at, decay_anchor, bid_count, created_at
      ) VALUES (
        @id, @name, @description, @url, @logo_url, @creator_name, @creator_id,
-       @current_bid, @current_bid_at, @bid_count, @created_at
+       @current_bid, @current_bid_at, @decayed_at, @decay_anchor, @bid_count, @created_at
      )`,
   );
 
@@ -210,6 +210,8 @@ export function seedIfEmpty() {
         creator_id: creator?.id ?? null,
         current_bid: winningBid.amount,
         current_bid_at: hoursAgoIso(winningBid.hoursAgo),
+        decayed_at: nowIso(),
+        decay_anchor: winningBid.amount,
         bid_count: product.bids.length,
         created_at: productCreated,
       });

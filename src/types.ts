@@ -19,6 +19,7 @@ export type Product = {
   bidCount: number;
   minNextBid: number;
   dumpCost: number | null;
+  decayPerDay: number;
   rank: number | null;
   clickCount: number;
   createdAt: string;

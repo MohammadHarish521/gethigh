@@ -6,6 +6,7 @@ import { DumpSpotModal } from "../components/DumpSpotModal";
 import { Leaderboard } from "../components/Leaderboard";
 import { OutbidBox } from "../components/OutbidBox";
 import { useProducts } from "../hooks/useProducts";
+import { MIN_BID, minimumNextBid } from "../lib/constants";
 import type { Product, RecentDump } from "../types";
 import { listingsMatch, parseListingInput } from "../utils/format";
 import { makeLogo } from "../utils/logo";
@@ -14,7 +15,7 @@ export function HomePage() {
   const { products, loading, error: loadError } = useProducts();
   const [searchParams] = useSearchParams();
   const [url, setUrl] = useState(searchParams.get("url") ?? "");
-  const [amount, setAmount] = useState(1);
+  const [amount, setAmount] = useState(MIN_BID);
   const [error, setError] = useState<string | null>(null);
   const [dumpingId, setDumpingId] = useState<string | null>(null);
   const [dumpTarget, setDumpTarget] = useState<Product | null>(null);
@@ -22,7 +23,7 @@ export function HomePage() {
   const [dumps, setDumps] = useState<RecentDump[]>([]);
 
   const topBid = products[0]?.currentBid ?? 0;
-  const claimPrice = Math.max(1, topBid + 1);
+  const claimPrice = products[0]?.minNextBid ?? minimumNextBid(topBid);
 
   useEffect(() => {
     setAmount(claimPrice);

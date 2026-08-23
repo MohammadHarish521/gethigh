@@ -34,7 +34,18 @@ import {
   markWebhookProcessed,
 } from "./bidding.js";
 import { isPolarConfigured } from "./polar.js";
-import { hostnameFromUrl, minimumNextBid } from "./ranking.js";
+import { applyDecay, startDecayScheduler } from "./decay.js";
+import {
+  DECAY_PER_DAY,
+  DUMP_PREMIUM,
+  MIN_BID,
+  MIN_RAISE,
+  MIN_RAISE_PCT,
+  decayPerDay,
+  dumpPrice,
+  hostnameFromUrl,
+  minimumNextBid,
+} from "./ranking.js";
 import { isPlaceholderDescription } from "./listingMeta.js";
 import { fetchSiteIcon } from "./favicon.js";
 
@@ -160,7 +171,11 @@ app.get(
 app.get("/api/config", (_req, res) => {
   res.json({
     mockPayments: !isPolarConfigured(),
-    minBid: 1,
+    minBid: MIN_BID,
+    minRaise: MIN_RAISE,
+    minRaisePct: MIN_RAISE_PCT,
+    dumpPremium: DUMP_PREMIUM,
+    decayPerDay: DECAY_PER_DAY,
   });
 });
 
@@ -227,6 +242,8 @@ app.get("/api/auth/me", (req, res) => {
 app.get(
   "/api/products",
   asyncHandler(async (_req, res) => {
+    applyDecay();
+
     let rows = db
       .prepare(
         `SELECT * FROM products
@@ -255,6 +272,8 @@ app.get(
 
 app.get("/api/products/:id", (req, res, next) => {
   try {
+  applyDecay();
+
   const product = findProduct(String(req.params.id || ""));
 
   if (!product || product.bid_count <= 0) {
@@ -557,12 +576,18 @@ if (existsSync(distDir)) {
   });
 }
 
+startDecayScheduler();
+
 app.listen(PORT, () => {
   console.log(`gethigh API on http://localhost:${PORT}`);
   console.log(
     isPolarConfigured()
       ? "Polar payments: enabled"
       : "Polar payments: not configured — using mock checkout",
+  );
+  console.log(
+    `Board economics: $${MIN_BID} floor · +${Math.round(MIN_RAISE_PCT * 100)}% min raise · ` +
+      `${DUMP_PREMIUM}x dump · ${Math.round(DECAY_PER_DAY * 100)}%/day decay`,
   );
 });
 
@@ -600,7 +625,8 @@ function toProductDto(product: ProductRow, rank: number | null) {
     bidCount: product.bid_count,
     clickCount: product.click_count ?? 0,
     minNextBid: minimumNextBid(product.current_bid),
-    dumpCost: product.current_bid >= 1 ? product.current_bid : null,
+    dumpCost: dumpPrice(product.current_bid),
+    decayPerDay: decayPerDay(product.current_bid),
     rank,
     createdAt: product.created_at,
   };

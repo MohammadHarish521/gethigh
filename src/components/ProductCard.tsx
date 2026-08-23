@@ -105,6 +105,14 @@ export function ProductCard({
           >
             {formatMoney(product.currentBid)}
           </span>
+          {product.decayPerDay > 0 ? (
+            <span
+              title="Every spot bleeds 5% of its price each day"
+              className="shrink-0 text-[13px] font-medium tracking-[-0.02em] text-fire-deep"
+            >
+              −{formatMoney(product.decayPerDay)}/day
+            </span>
+          ) : null}
           {dumpCost ? (
             <button
               type="button"
@@ -119,7 +127,7 @@ export function ProductCard({
                   : "btn-fire-soft font-medium tracking-[-0.02em]"
               }
             >
-              {dumping ? "Dumping…" : "Dump"}
+              {dumping ? "Dumping…" : `Dump · ${formatMoney(dumpCost)}`}
             </button>
           ) : null}
           <button

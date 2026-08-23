@@ -107,7 +107,8 @@ export function BidModal({ product, open, onClose }: BidModalProps) {
             : `Pay ${Number.isInteger(bidAmount) ? formatMoney(bidAmount) : ""}`}
         </button>
         <p className="text-center text-xs text-muted">
-          The leaderboard updates only after payment is confirmed on the server.
+          Every bid is charged in full, and your spot bleeds 5% a day. The
+          leaderboard updates only after payment is confirmed on the server.
         </p>
       </form>
     </Modal>

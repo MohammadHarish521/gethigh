@@ -12,7 +12,8 @@ export function DumpExplainer() {
           Dump
         </h2>
         <p className="mt-1 text-[14px] leading-[1.45] font-medium tracking-[-0.02em] text-muted">
-          Pay their bid, paste your URL, take the spot. They hit $0 and last.
+          Pay their bid plus 25%, paste your URL, take the spot at that price.
+          They hit $0 and last.
         </p>
       </div>
       <FloatingBadge {...dumpBadge} glowStrength="soft" />

@@ -9,10 +9,12 @@ import {
 import { HttpError } from "./http.js";
 import { createPolarCheckout, getAppUrl, isPolarConfigured } from "./polar.js";
 import {
+  MIN_BID,
+  bidCharge,
+  dumpPrice,
   listingKey,
   minimumNextBid,
   parseBidAmount,
-  raiseCharge,
 } from "./ranking.js";
 import {
   fetchListingMeta,
@@ -167,7 +169,10 @@ export async function createBidCheckout(input: {
 }) {
   const amount = parseBidAmount(input.amount);
   if (amount === null) {
-    throw new HttpError(400, "Bid amount must be a whole dollar amount of at least $1.");
+    throw new HttpError(
+      400,
+      `Bid amount must be a whole dollar amount of at least $${MIN_BID}.`,
+    );
   }
 
   const product = getProduct(input.productId);
@@ -175,7 +180,7 @@ export async function createBidCheckout(input: {
     throw new HttpError(404, "Product not found.");
   }
 
-  const charge = raiseCharge(product.current_bid, amount);
+  const charge = bidCharge(product.current_bid, amount);
   if (charge === null) {
     const minBid = minimumNextBid(product.current_bid);
     throw new HttpError(
@@ -227,14 +232,14 @@ export async function createDumpCheckout(input: {
   if (!product || product.bid_count <= 0) {
     throw new HttpError(404, "Product not found.");
   }
-  if (product.current_bid < 1) {
+  const amount = dumpPrice(product.current_bid);
+  if (amount === null) {
     throw new HttpError(400, "They’re already on the floor.");
   }
 
   const claimUrl = normalizeClaimUrl(input.claimUrl);
   const existingClaim = findProductByUrl(claimUrl);
   const meta = existingClaim ? null : await fetchListingMeta(claimUrl);
-  const amount = product.current_bid;
   const bidId = crypto.randomUUID();
   const paymentId = crypto.randomUUID();
   const createdAt = nowIso();
@@ -258,8 +263,8 @@ export async function createDumpCheckout(input: {
       db.prepare(
         `INSERT INTO products (
            id, name, description, url, logo_url, creator_name, creator_id,
-           current_bid, current_bid_at, bid_count, created_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, 0, ?)`,
+           current_bid, current_bid_at, decayed_at, decay_anchor, bid_count, created_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, 0, 0, ?)`,
       ).run(
         claimProductId,
         name,
@@ -268,6 +273,7 @@ export async function createDumpCheckout(input: {
         letterLogo(name),
         input.userName || name,
         input.userId,
+        createdAt,
         createdAt,
       );
     }
@@ -311,7 +317,10 @@ export async function createProductWithStartingBid(input: {
 }) {
   const amount = parseBidAmount(input.startingBid);
   if (amount === null) {
-    throw new HttpError(400, "Starting bid must be a whole dollar amount of at least $1.");
+    throw new HttpError(
+      400,
+      `Starting bid must be a whole dollar amount of at least $${MIN_BID}.`,
+    );
   }
 
   const name = input.name.trim();
@@ -364,8 +373,8 @@ export async function createProductWithStartingBid(input: {
     db.prepare(
       `INSERT INTO products (
          id, name, description, url, logo_url, creator_name, creator_id,
-         current_bid, current_bid_at, bid_count, created_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, 0, ?)`,
+         current_bid, current_bid_at, decayed_at, decay_anchor, bid_count, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, 0, 0, ?)`,
     ).run(
       productId,
       resolvedName,
@@ -374,6 +383,7 @@ export async function createProductWithStartingBid(input: {
       logoUrl,
       creatorName,
       input.userId,
+      createdAt,
       createdAt,
     );
 
@@ -549,67 +559,82 @@ export function confirmPayment(
       const canDump =
         product.current_bid >= 1 && product.current_bid <= bid.amount;
 
-      if (canDump) {
-        const rankBefore = getProductRank(product.id);
-        const heldSeconds = product.current_bid_at
+      const rankBefore = canDump ? getProductRank(product.id) : null;
+      const heldSeconds =
+        canDump && product.current_bid_at
           ? Math.max(
               0,
               Math.floor(
                 (Date.now() - new Date(product.current_bid_at).getTime()) / 1000,
               ),
             )
-          : 0;
+          : null;
 
-        db.prepare(
-          `UPDATE bids
-           SET status = 'succeeded', confirmed_at = ?, dump_rank = ?, dump_held_seconds = ?
-           WHERE id = ?`,
-        ).run(processedAt, rankBefore, heldSeconds, bid.id);
+      db.prepare(
+        `UPDATE bids
+         SET status = 'succeeded', confirmed_at = ?, dump_rank = ?, dump_held_seconds = ?
+         WHERE id = ?`,
+      ).run(processedAt, rankBefore, heldSeconds, bid.id);
 
+      if (canDump) {
         db.prepare(
           `UPDATE products
-           SET current_bid = 0, current_bid_at = ?
+           SET current_bid = 0, current_bid_at = ?, decayed_at = ?, decay_anchor = 0
            WHERE id = ?`,
-        ).run(processedAt, product.id);
+        ).run(processedAt, processedAt, product.id);
+      }
 
-        const claimId = bid.dump_claim_product_id;
-        if (claimId) {
-          const claim = getProduct(claimId);
-          if (claim) {
-            if (claim.id === product.id) {
-              const owner = db
-                .prepare("SELECT name FROM users WHERE id = ?")
-                .get(bid.user_id) as { name: string } | undefined;
-              db.prepare(
-                `UPDATE products
-                 SET current_bid = ?, current_bid_at = ?, bid_count = MAX(bid_count, 1),
-                     creator_id = ?, creator_name = ?
-                 WHERE id = ?`,
-              ).run(
-                bid.amount,
-                processedAt,
-                bid.user_id,
-                owner?.name || claim.creator_name,
-                claim.id,
-              );
-            } else {
-              db.prepare(
-                `UPDATE products
-                 SET current_bid_at = CASE
-                       WHEN current_bid >= ? THEN current_bid_at
-                       ELSE ?
-                     END,
-                     current_bid = MAX(current_bid, ?),
-                     bid_count = bid_count + 1
-                 WHERE id = ?`,
-              ).run(bid.amount, processedAt, bid.amount, claim.id);
-            }
+      // The claim is placed even when the target moved out of reach mid-checkout,
+      // so a paid dump always buys a position rather than nothing.
+      const claimId = bid.dump_claim_product_id;
+      if (claimId) {
+        const claim = getProduct(claimId);
+        if (claim) {
+          if (claim.id === product.id) {
+            const owner = db
+              .prepare("SELECT name FROM users WHERE id = ?")
+              .get(bid.user_id) as { name: string } | undefined;
+            db.prepare(
+              `UPDATE products
+               SET current_bid = ?, current_bid_at = ?, decayed_at = ?, decay_anchor = ?,
+                   bid_count = MAX(bid_count, 1),
+                   creator_id = ?, creator_name = ?
+               WHERE id = ?`,
+            ).run(
+              bid.amount,
+              processedAt,
+              processedAt,
+              bid.amount,
+              bid.user_id,
+              owner?.name || claim.creator_name,
+              claim.id,
+            );
+          } else {
+            db.prepare(
+              `UPDATE products
+               SET current_bid_at = CASE
+                     WHEN current_bid >= ? THEN current_bid_at
+                     ELSE ?
+                   END,
+                   decayed_at = CASE
+                     WHEN current_bid >= ? THEN decayed_at
+                     ELSE ?
+                   END,
+                   decay_anchor = MAX(COALESCE(decay_anchor, current_bid), ?),
+                   current_bid = MAX(current_bid, ?),
+                   bid_count = bid_count + 1
+               WHERE id = ?`,
+            ).run(
+              bid.amount,
+              processedAt,
+              bid.amount,
+              processedAt,
+              bid.amount,
+              bid.amount,
+              claim.id,
+            );
           }
         }
-      } else {
-        db.prepare(
-          `UPDATE bids SET status = 'succeeded', confirmed_at = ? WHERE id = ?`,
-        ).run(processedAt, bid.id);
       }
     } else {
       db.prepare(
@@ -621,9 +646,10 @@ export function confirmPayment(
       if (bid.amount > product.current_bid) {
         db.prepare(
           `UPDATE products
-           SET current_bid = ?, current_bid_at = ?, bid_count = bid_count + 1
+           SET current_bid = ?, current_bid_at = ?, decayed_at = ?, decay_anchor = ?,
+               bid_count = bid_count + 1
            WHERE id = ?`,
-        ).run(bid.amount, processedAt, product.id);
+        ).run(bid.amount, processedAt, processedAt, bid.amount, product.id);
       } else {
         db.prepare(
           `UPDATE products SET bid_count = bid_count + 1 WHERE id = ?`,

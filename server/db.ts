@@ -4,11 +4,13 @@ import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dataDir = path.resolve(__dirname, "../data");
+const dbPath = process.env.DB_PATH?.trim()
+  ? path.resolve(process.env.DB_PATH.trim())
+  : path.resolve(__dirname, "../data/bidtop.db");
 
-fs.mkdirSync(dataDir, { recursive: true });
+fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
-export const db = new Database(path.join(dataDir, "bidtop.db"));
+export const db = new Database(dbPath);
 
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
@@ -110,6 +112,17 @@ addColumn("bids", "dump_rank", "INTEGER");
 addColumn("bids", "dump_held_seconds", "INTEGER");
 addColumn("bids", "dump_claim_product_id", "TEXT");
 addColumn("products", "click_count", "INTEGER NOT NULL DEFAULT 0");
+addColumn("products", "decayed_at", "TEXT");
+addColumn("products", "decay_anchor", "INTEGER");
+
+// Listings that predate decay start their clock now rather than being
+// retroactively drained for every day they sat on the board.
+db.prepare("UPDATE products SET decayed_at = ? WHERE decayed_at IS NULL").run(
+  new Date().toISOString(),
+);
+db.prepare(
+  "UPDATE products SET decay_anchor = current_bid WHERE decay_anchor IS NULL",
+).run();
 
 export type UserRow = {
   id: string;
@@ -129,6 +142,8 @@ export type ProductRow = {
   creator_id: string | null;
   current_bid: number;
   current_bid_at: string | null;
+  decayed_at: string | null;
+  decay_anchor: number | null;
   bid_count: number;
   click_count: number;
   created_at: string;

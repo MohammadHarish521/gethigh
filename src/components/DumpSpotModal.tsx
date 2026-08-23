@@ -60,8 +60,9 @@ export function DumpSpotModal({
           </h2>
           <p className="mt-1 text-[14px] leading-[1.4] font-medium tracking-[-0.02em] text-muted">
             Dump {product.name}
-            {rank ? ` from #${rank}` : ""}. They hit $0 and last. Your URL sits
-            here at {formatMoney(cost)}.
+            {rank ? ` from #${rank}` : ""}. They hit $0 and last. Dumping costs
+            a 25% premium on their {formatMoney(product.currentBid)}, so your
+            URL lands here at {formatMoney(cost)}.
           </p>
         </div>
       </div>

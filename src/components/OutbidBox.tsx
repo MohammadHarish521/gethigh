@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { MIN_BID, MIN_RAISE } from "../lib/constants";
 import { formatMoney } from "../utils/format";
 
 type OutbidBoxProps = {
@@ -43,7 +44,7 @@ export function OutbidBox({
   function commitDraft() {
     const parsed = parseAmount(draft);
     if (parsed === null) {
-      const fallback = Math.max(1, amount);
+      const fallback = Math.max(MIN_BID, amount);
       setDraft(String(fallback));
       onAmount(fallback);
       return;
@@ -63,10 +64,10 @@ export function OutbidBox({
   }
 
   const takesTop = amount >= claimPrice;
-  const extraPay =
-    existingBid != null && existingBid > 0 && amount > existingBid
-      ? amount - existingBid
-      : null;
+  const chargeNote =
+    existingBid != null && existingBid > 0
+      ? `You sit at ${formatMoney(existingBid)} — this charges ${formatMoney(amount)} on top.`
+      : `You pay ${formatMoney(amount)} in full.`;
 
   return (
     <section className="mx-auto flex max-w-[900px] flex-col items-center gap-[18px] px-4 text-center sm:px-[50px]">
@@ -77,7 +78,7 @@ export function OutbidBox({
         </span>
         {liveCount === 0 ? (
           <span>
-            <b className="font-bold text-fg-strong">$1</b> takes #1
+            <b className="font-bold text-fg-strong">{formatMoney(MIN_BID)}</b> takes #1
           </span>
         ) : (
           <span>
@@ -95,14 +96,14 @@ export function OutbidBox({
         <span className="font-semibold text-fire-deep">
           Dump them — your URL takes the spot
         </span>
-        . They hit $0 and last. Or bid from $1 to climb.
+        . They hit $0 and last. Or bid from {formatMoney(MIN_BID)} to climb.
       </p>
 
       <div className="flex w-full max-w-[640px] flex-col items-center gap-2">
         <div className="flex items-end justify-center gap-[17px] pb-2">
           <StepButton
-            label="Decrease bid by $1"
-            onClick={() => onAmount(Math.max(1, amount - 1))}
+            label={`Decrease bid by $${MIN_RAISE}`}
+            onClick={() => onAmount(Math.max(MIN_BID, amount - MIN_RAISE))}
           >
             −
           </StepButton>
@@ -127,8 +128,8 @@ export function OutbidBox({
             </span>
           </label>
           <StepButton
-            label="Increase bid by $1"
-            onClick={() => onAmount(amount + 1)}
+            label={`Increase bid by $${MIN_RAISE}`}
+            onClick={() => onAmount(amount + MIN_RAISE)}
           >
             +
           </StepButton>
@@ -176,12 +177,8 @@ export function OutbidBox({
 
       <p className="max-w-[424px] text-[14px] leading-[1.4] font-medium tracking-[-0.3px] text-muted-strong">
         {takesTop
-          ? extraPay != null
-            ? `This takes #1. You pay ${formatMoney(extraPay)} more — same URL only charges the difference.`
-            : "This takes #1. Same URL again only charges the difference."
-          : extraPay != null
-            ? `This lands at #${previewRank}. You pay ${formatMoney(extraPay)} more.`
-            : `This lands at #${previewRank}. Dump is on every listing — costs whatever they’re sitting at.`}
+          ? `This takes #1. ${chargeNote} Every spot bleeds 5% a day, so #1 only stays #1 while you feed it.`
+          : `This lands at #${previewRank}. ${chargeNote}`}
       </p>
     </section>
   );
@@ -190,7 +187,7 @@ export function OutbidBox({
 function parseAmount(raw: string) {
   if (!raw) return null;
   const value = Number(raw);
-  if (!Number.isInteger(value) || value < 1) return null;
+  if (!Number.isInteger(value) || value < MIN_BID) return null;
   return value;
 }
 

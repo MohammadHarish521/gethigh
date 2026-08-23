@@ -27,7 +27,7 @@ export function Leaderboard({
           The throne is empty
         </h3>
         <p className="mt-2 max-w-sm text-[16px] leading-[1.4] font-medium tracking-[-0.02em] text-muted">
-          $1 takes #1. Then someone dumps you. That’s the whole sport — paste a
+          $5 takes #1. Then someone dumps you. That’s the whole sport — paste a
           URL above and start it.
         </p>
         <button

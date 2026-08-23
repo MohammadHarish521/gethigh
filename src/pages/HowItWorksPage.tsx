@@ -4,17 +4,23 @@ const steps = [
   {
     n: "1",
     title: "Dump anyone",
-    body: "Pay their current bid, paste your URL, and you sit in their spot. They drop to $0 and last — still on the board, just humiliated.",
+    body: "Pay a 25% premium on their current bid, paste your URL, and you sit in their spot at that higher number. They drop to $0 and last — still on the board, just humiliated.",
     tone: "text-fire-deep",
   },
   {
     n: "2",
     title: "Or take the seat",
-    body: "Paste a URL or @handle and pay what you type. Highest bid sits at #1. Same link again only charges the difference.",
+    body: "Paste a URL or @handle and pay what you type. Bids start at $5 and each raise has to clear the current price by 10%. Every bid is charged in full.",
     tone: "text-accent",
   },
   {
     n: "3",
+    title: "Hold it or lose it",
+    body: "Every spot bleeds 5% of its price a day. Stop feeding your listing and it sinks on its own — and gets cheap enough for anyone to dump.",
+    tone: "text-fg-strong",
+  },
+  {
+    n: "4",
     title: "Share the hit",
     body: "Every dump gets a kill card. Copy it. Post it. That’s the whole sport.",
     tone: "text-fg-strong",

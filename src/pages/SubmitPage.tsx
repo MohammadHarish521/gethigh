@@ -11,7 +11,7 @@ export function SubmitPage() {
     <div className="animate-fade-up mx-auto max-w-lg">
       <h1 className="text-2xl font-semibold tracking-tight">Submit a product</h1>
       <p className="mt-2 text-sm text-muted">
-        Pay a starting bid of at least $1. After payment is confirmed, your product joins the leaderboard.
+        Pay a starting bid of at least $5. After payment is confirmed, your product joins the leaderboard.
       </p>
       {user ? (
         <div className="mt-6 rounded-md border border-line bg-white p-5">

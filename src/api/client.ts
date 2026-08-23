@@ -29,7 +29,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  config: () => request<{ mockPayments: boolean; minBid: number }>("/api/config"),
+  config: () =>
+    request<{
+      mockPayments: boolean;
+      minBid: number;
+      minRaise: number;
+      minRaisePct: number;
+      dumpPremium: number;
+      decayPerDay: number;
+    }>("/api/config"),
   me: () => request<{ user: User | null }>("/api/auth/me"),
   login: (email: string, password: string) =>
     request<{ user: User }>("/api/auth/login", {
