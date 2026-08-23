@@ -30,7 +30,38 @@ function logoSvg(letter: string, from: string, to: string) {
   )}`;
 }
 
+const SEED_PRODUCT_IDS = [
+  "prod-arc",
+  "prod-flownote",
+  "prod-pixelkit",
+  "prod-launchly",
+  "prod-memo",
+  "prod-devboard",
+];
+
+const SEED_USER_IDS = [
+  "user-maya",
+  "user-jonas",
+  "user-demo",
+  "user-priya",
+  "user-alex",
+];
+
+function removeSeedListings() {
+  const deleteProduct = db.prepare("DELETE FROM products WHERE id = ?");
+  const deleteUser = db.prepare("DELETE FROM users WHERE id = ?");
+  db.transaction(() => {
+    for (const id of SEED_PRODUCT_IDS) deleteProduct.run(id);
+    for (const id of SEED_USER_IDS) deleteUser.run(id);
+  })();
+}
+
 export function seedIfEmpty() {
+  if (process.env.NODE_ENV === "production") {
+    removeSeedListings();
+    return;
+  }
+
   const row = db.prepare("SELECT COUNT(*) AS count FROM products").get() as {
     count: number;
   };
