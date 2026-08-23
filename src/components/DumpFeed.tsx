@@ -12,7 +12,7 @@ export function DumpExplainer() {
           Dump
         </h2>
         <p className="mt-1 text-[14px] leading-[1.45] font-medium tracking-[-0.02em] text-muted">
-          Pay their bid. They hit $0 and last place. That’s the sport.
+          Pay their bid, paste your URL, take the spot. They hit $0 and last.
         </p>
       </div>
       <FloatingBadge {...dumpBadge} glowStrength="soft" />
@@ -20,7 +20,13 @@ export function DumpExplainer() {
   );
 }
 
-export function RecentDumps({ dumps }: { dumps: RecentDump[] }) {
+export function RecentDumps({
+  dumps,
+  onDumpTop,
+}: {
+  dumps: RecentDump[];
+  onDumpTop?: () => void;
+}) {
   const empty = dumps.length === 0;
 
   return (
@@ -44,14 +50,17 @@ export function RecentDumps({ dumps }: { dumps: RecentDump[] }) {
       {empty ? (
         <>
           <p className="mt-3 text-[14px] leading-[1.45] font-medium tracking-[-0.02em] text-muted">
-            First dump writes the lore. Knock #1 to $0 and take the kill card.
+            First dump writes the lore. Knock them to $0 and take the spot.
           </p>
           <button
             type="button"
             className="btn-fire mt-4 w-full text-[15px]"
-            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            onClick={() => {
+              if (onDumpTop) onDumpTop();
+              else window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
           >
-            Dump #1
+            Take this spot
           </button>
         </>
       ) : (
@@ -81,11 +90,17 @@ export function RecentDumps({ dumps }: { dumps: RecentDump[] }) {
   );
 }
 
-export function DumpFeed({ dumps }: { dumps: RecentDump[] }) {
+export function DumpFeed({
+  dumps,
+  onDumpTop,
+}: {
+  dumps: RecentDump[];
+  onDumpTop?: () => void;
+}) {
   return (
     <div className="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2">
       <DumpExplainer />
-      <RecentDumps dumps={dumps} />
+      <RecentDumps dumps={dumps} onDumpTop={onDumpTop} />
     </div>
   );
 }

@@ -4,7 +4,7 @@ const steps = [
   {
     n: "1",
     title: "Dump anyone",
-    body: "Pay their current bid. They drop to $0 and slide to last — still on the board, just humiliated.",
+    body: "Pay their current bid, paste your URL, and you sit in their spot. They drop to $0 and last — still on the board, just humiliated.",
     tone: "text-fire-deep",
   },
   {

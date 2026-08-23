@@ -108,6 +108,7 @@ function addColumn(table: string, column: string, definition: string) {
 addColumn("bids", "kind", "TEXT NOT NULL DEFAULT 'bid'");
 addColumn("bids", "dump_rank", "INTEGER");
 addColumn("bids", "dump_held_seconds", "INTEGER");
+addColumn("bids", "dump_claim_product_id", "TEXT");
 addColumn("products", "click_count", "INTEGER NOT NULL DEFAULT 0");
 
 export type UserRow = {
@@ -147,6 +148,7 @@ export type BidRow = {
   kind: BidKind;
   dump_rank: number | null;
   dump_held_seconds: number | null;
+  dump_claim_product_id: string | null;
 };
 
 export type PaymentRow = {

@@ -360,6 +360,7 @@ app.post(
       userId: user.id,
       userEmail: user.email,
       userName: user.name,
+      claimUrl: String(req.body.url || ""),
     });
     res.status(201).json(result);
   }),
@@ -451,6 +452,14 @@ app.get("/api/payments/:id", (req, res, next) => {
         | ProductRow
         | undefined)
     : undefined;
+  const claimProduct =
+    bid?.dump_claim_product_id
+      ? (db
+          .prepare("SELECT * FROM products WHERE id = ?")
+          .get(bid.dump_claim_product_id) as ProductRow | undefined)
+      : undefined;
+  const rankedProduct =
+    bid?.kind === "dump" && claimProduct ? claimProduct : product;
 
   res.json({
     payment: {
@@ -472,9 +481,12 @@ app.get("/api/payments/:id", (req, res, next) => {
         }
       : null,
     product: product ? toProductDto(product, getProductRank(product.id)) : null,
+    claimProduct: claimProduct
+      ? toProductDto(claimProduct, getProductRank(claimProduct.id))
+      : null,
     becameNumberOne:
-      payment.status === "succeeded" && product
-        ? getProductRank(product.id) === 1
+      payment.status === "succeeded" && rankedProduct
+        ? getProductRank(rankedProduct.id) === 1
         : false,
   });
   } catch (error) {

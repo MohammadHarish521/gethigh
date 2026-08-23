@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import { DumpExplainer, DumpFeed, RecentDumps } from "../components/DumpFeed";
+import { DumpSpotModal } from "../components/DumpSpotModal";
 import { Leaderboard } from "../components/Leaderboard";
 import { OutbidBox } from "../components/OutbidBox";
 import { useProducts } from "../hooks/useProducts";
@@ -16,6 +17,8 @@ export function HomePage() {
   const [amount, setAmount] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [dumpingId, setDumpingId] = useState<string | null>(null);
+  const [dumpTarget, setDumpTarget] = useState<Product | null>(null);
+  const [dumpError, setDumpError] = useState<string | null>(null);
   const [dumps, setDumps] = useState<RecentDump[]>([]);
 
   const topBid = products[0]?.currentBid ?? 0;
@@ -40,14 +43,21 @@ export function HomePage() {
   const existing = findExisting(products, url);
   const previewRank = rankForAmount(products, amount, existing?.id);
 
-  async function onDump(product: Product) {
+  function onDump(product: Product) {
     setError(null);
-    setDumpingId(product.id);
+    setDumpError(null);
+    setDumpTarget(product);
+  }
+
+  async function submitDump(claimUrl: string) {
+    if (!dumpTarget) return;
+    setDumpError(null);
+    setDumpingId(dumpTarget.id);
     try {
-      const checkout = await api.createDump(product.id);
+      const checkout = await api.createDump(dumpTarget.id, claimUrl);
       window.location.href = checkout.checkoutUrl;
     } catch (err: unknown) {
-      setError(
+      setDumpError(
         err instanceof Error ? err.message : "Could not start that dump.",
       );
       setDumpingId(null);
@@ -121,7 +131,10 @@ export function HomePage() {
             />
           </div>
           <aside className="sticky top-24">
-            <RecentDumps dumps={dumps} />
+            <RecentDumps
+              dumps={dumps}
+              onDumpTop={products[0] ? () => onDump(products[0]) : undefined}
+            />
           </aside>
         </div>
 
@@ -145,10 +158,26 @@ export function HomePage() {
             dumpingId={dumpingId}
           />
           <div className="mt-6">
-            <DumpFeed dumps={dumps} />
+            <DumpFeed
+              dumps={dumps}
+              onDumpTop={products[0] ? () => onDump(products[0]) : undefined}
+            />
           </div>
         </div>
       </div>
+
+      <DumpSpotModal
+        product={dumpTarget}
+        open={dumpTarget != null}
+        busy={dumpingId === dumpTarget?.id}
+        error={dumpError}
+        onClose={() => {
+          if (dumpingId) return;
+          setDumpTarget(null);
+          setDumpError(null);
+        }}
+        onSubmit={submitDump}
+      />
     </div>
   );
 }

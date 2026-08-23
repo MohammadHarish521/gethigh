@@ -23,6 +23,7 @@ export type ConfirmResult = {
   alreadyProcessed: boolean;
   becameNumberOne: boolean;
   product: ProductRow;
+  claimProduct?: ProductRow | null;
   bid: BidRow;
   payment: PaymentRow;
 };
@@ -62,7 +63,7 @@ export function getProductRank(productId: string) {
   return index === -1 ? null : index + 1;
 }
 
-function findLiveProductByUrl(url: string) {
+function findProductByUrl(url: string) {
   let key: string;
   try {
     key = listingKey(url);
@@ -70,10 +71,7 @@ function findLiveProductByUrl(url: string) {
     return undefined;
   }
 
-  const rows = db
-    .prepare("SELECT * FROM products WHERE bid_count > 0")
-    .all() as ProductRow[];
-
+  const rows = db.prepare("SELECT * FROM products").all() as ProductRow[];
   return rows.find((row) => {
     try {
       return listingKey(row.url) === key;
@@ -81,6 +79,41 @@ function findLiveProductByUrl(url: string) {
       return false;
     }
   });
+}
+
+function findLiveProductByUrl(url: string) {
+  const row = findProductByUrl(url);
+  return row && row.bid_count > 0 ? row : undefined;
+}
+
+function normalizeClaimUrl(raw: string) {
+  let url = raw.trim();
+  if (!url) {
+    throw new HttpError(400, "Paste the URL you want in that spot.");
+  }
+  if (url.startsWith("@")) {
+    const handle = url.slice(1).replace(/[^a-zA-Z0-9_]/g, "");
+    if (!handle) throw new HttpError(400, "Enter a valid @handle.");
+    url = `https://x.com/${handle}`;
+  }
+  if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+  try {
+    new URL(url);
+  } catch {
+    throw new HttpError(400, "Enter a valid website URL.");
+  }
+  return url;
+}
+
+function letterLogo(name: string) {
+  const letter = name.trim().charAt(0).toUpperCase() || "G";
+  return `data:image/svg+xml;utf8,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
+      <circle cx="48" cy="48" r="48" fill="#508200"/>
+      <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle"
+        font-family="Inter, system-ui, sans-serif" font-size="38" font-weight="600" fill="white">${letter}</text>
+    </svg>`,
+  )}`;
 }
 
 function insertCheckoutRows(input: {
@@ -93,12 +126,14 @@ function insertCheckoutRows(input: {
   kind: "bid" | "dump";
   createdAt: string;
   provider: "polar" | "mock";
+  dumpClaimProductId?: string | null;
 }) {
   const paymentAmount = input.paymentAmount ?? input.amount;
 
   db.prepare(
-    `INSERT INTO bids (id, product_id, user_id, amount, status, payment_id, created_at, kind)
-     VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)`,
+    `INSERT INTO bids (
+       id, product_id, user_id, amount, status, payment_id, created_at, kind, dump_claim_product_id
+     ) VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
   ).run(
     input.bidId,
     input.productId,
@@ -107,6 +142,7 @@ function insertCheckoutRows(input: {
     input.paymentId,
     input.createdAt,
     input.kind,
+    input.dumpClaimProductId ?? null,
   );
 
   db.prepare(
@@ -185,6 +221,7 @@ export async function createDumpCheckout(input: {
   userId: string;
   userEmail: string;
   userName: string;
+  claimUrl: string;
 }) {
   const product = getProduct(input.productId);
   if (!product || product.bid_count <= 0) {
@@ -194,6 +231,9 @@ export async function createDumpCheckout(input: {
     throw new HttpError(400, "They’re already on the floor.");
   }
 
+  const claimUrl = normalizeClaimUrl(input.claimUrl);
+  const existingClaim = findProductByUrl(claimUrl);
+  const meta = existingClaim ? null : await fetchListingMeta(claimUrl);
   const amount = product.current_bid;
   const bidId = crypto.randomUUID();
   const paymentId = crypto.randomUUID();
@@ -201,6 +241,37 @@ export async function createDumpCheckout(input: {
   const provider = isPolarConfigured() ? "polar" : "mock";
 
   db.transaction(() => {
+    let claimProductId = existingClaim?.id;
+    if (!claimProductId) {
+      const host = (() => {
+        try {
+          return new URL(claimUrl).hostname.replace(/^www\./i, "");
+        } catch {
+          return "site";
+        }
+      })();
+      const name = (meta?.title || host).slice(0, 80);
+      const description = (
+        meta?.description || `Listed from ${host}.`
+      ).slice(0, 500);
+      claimProductId = crypto.randomUUID();
+      db.prepare(
+        `INSERT INTO products (
+           id, name, description, url, logo_url, creator_name, creator_id,
+           current_bid, current_bid_at, bid_count, created_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, 0, ?)`,
+      ).run(
+        claimProductId,
+        name,
+        description,
+        claimUrl,
+        letterLogo(name),
+        input.userName || name,
+        input.userId,
+        createdAt,
+      );
+    }
+
     insertCheckoutRows({
       bidId,
       paymentId,
@@ -210,6 +281,7 @@ export async function createDumpCheckout(input: {
       kind: "dump",
       createdAt,
       provider,
+      dumpClaimProductId: claimProductId,
     });
   })();
 
@@ -433,11 +505,16 @@ export function confirmPayment(
       const bid = getBid(payment.bid_id);
       const product = bid ? getProduct(bid.product_id) : undefined;
       if (!bid || !product) throw new HttpError(404, "Bid not found.");
+      const claimProduct = bid.dump_claim_product_id
+        ? getProduct(bid.dump_claim_product_id) ?? null
+        : null;
+      const rankedId =
+        bidKind(bid) === "dump" && claimProduct ? claimProduct.id : product.id;
       return {
         alreadyProcessed: true,
-        becameNumberOne:
-          bidKind(bid) === "bid" && getProductRank(product.id) === 1,
+        becameNumberOne: getProductRank(rankedId) === 1,
         product,
+        claimProduct,
         bid,
         payment,
       };
@@ -494,6 +571,41 @@ export function confirmPayment(
            SET current_bid = 0, current_bid_at = ?
            WHERE id = ?`,
         ).run(processedAt, product.id);
+
+        const claimId = bid.dump_claim_product_id;
+        if (claimId) {
+          const claim = getProduct(claimId);
+          if (claim) {
+            if (claim.id === product.id) {
+              const owner = db
+                .prepare("SELECT name FROM users WHERE id = ?")
+                .get(bid.user_id) as { name: string } | undefined;
+              db.prepare(
+                `UPDATE products
+                 SET current_bid = ?, current_bid_at = ?, bid_count = MAX(bid_count, 1),
+                     creator_id = ?, creator_name = ?
+                 WHERE id = ?`,
+              ).run(
+                bid.amount,
+                processedAt,
+                bid.user_id,
+                owner?.name || claim.creator_name,
+                claim.id,
+              );
+            } else {
+              db.prepare(
+                `UPDATE products
+                 SET current_bid_at = CASE
+                       WHEN current_bid >= ? THEN current_bid_at
+                       ELSE ?
+                     END,
+                     current_bid = MAX(current_bid, ?),
+                     bid_count = bid_count + 1
+                 WHERE id = ?`,
+              ).run(bid.amount, processedAt, bid.amount, claim.id);
+            }
+          }
+        }
       } else {
         db.prepare(
           `UPDATE bids SET status = 'succeeded', confirmed_at = ? WHERE id = ?`,
@@ -522,12 +634,19 @@ export function confirmPayment(
     const updatedProduct = getProduct(product.id)!;
     const updatedBid = getBid(bid.id)!;
     const updatedPayment = getPayment(payment.id)!;
+    const claimProduct = updatedBid.dump_claim_product_id
+      ? getProduct(updatedBid.dump_claim_product_id) ?? null
+      : null;
+    const rankedId =
+      bidKind(updatedBid) === "dump" && claimProduct
+        ? claimProduct.id
+        : updatedProduct.id;
 
     return {
       alreadyProcessed: false,
-      becameNumberOne:
-        bidKind(updatedBid) === "bid" && getProductRank(updatedProduct.id) === 1,
+      becameNumberOne: getProductRank(rankedId) === 1,
       product: updatedProduct,
+      claimProduct,
       bid: updatedBid,
       payment: updatedPayment,
     };

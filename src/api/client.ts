@@ -65,10 +65,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ productId, amount }),
     }),
-  createDump: (productId: string) =>
+  createDump: (productId: string, url: string) =>
     request<CheckoutResponse>("/api/dumps", {
       method: "POST",
-      body: JSON.stringify({ productId }),
+      body: JSON.stringify({ productId, url }),
     }),
   recentDumps: () => request<{ dumps: RecentDump[] }>("/api/dumps"),
   myBids: () => request<{ bids: UserBid[] }>("/api/me/bids"),

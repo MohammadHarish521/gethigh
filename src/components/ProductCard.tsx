@@ -126,12 +126,13 @@ export function ProductCard({
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              if (onTakeOne) onTakeOne();
+              if (dumpCost) onDump(product);
+              else if (onTakeOne) onTakeOne();
               else onBid(product);
             }}
             className="btn-ghost px-3 py-1.5 text-[13px] font-medium tracking-[-0.02em]"
           >
-            Take #1
+            Take this spot
           </button>
           <span className="ml-auto flex min-w-0 items-center gap-2">
             <span className="chip-clicks-blue shrink-0">

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { BidHistory } from "../components/BidHistory";
+import { DumpSpotModal } from "../components/DumpSpotModal";
 import { EmptyState } from "../components/EmptyState";
 import { RankBadge } from "../components/FloatingMedal";
 import { ProductLogo } from "../components/ProductLogo";
@@ -32,12 +33,20 @@ export function ProductPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  const [dumpOpen, setDumpOpen] = useState(false);
+
   async function onDump() {
+    if (!product) return;
+    setDumpError(null);
+    setDumpOpen(true);
+  }
+
+  async function submitDump(claimUrl: string) {
     if (!product) return;
     setDumpError(null);
     setDumping(true);
     try {
-      const checkout = await api.createDump(product.id);
+      const checkout = await api.createDump(product.id, claimUrl);
       window.location.href = checkout.checkoutUrl;
     } catch (err: unknown) {
       setDumpError(
@@ -146,6 +155,19 @@ export function ProductPage() {
         </h2>
         <BidHistory bids={bids} />
       </section>
+
+      <DumpSpotModal
+        product={product}
+        open={dumpOpen}
+        busy={dumping}
+        error={dumpError}
+        onClose={() => {
+          if (dumping) return;
+          setDumpOpen(false);
+          setDumpError(null);
+        }}
+        onSubmit={submitDump}
+      />
     </div>
   );
 }

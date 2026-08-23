@@ -10,7 +10,7 @@ export function Layout({ children }: { children: ReactNode }) {
         {children}
       </main>
       <footer className="px-4 pt-8 pb-16 text-center text-[14px] tracking-[-0.26px] text-muted">
-        <p>gethigh · Dump #1. They hit $0. Then take the seat.</p>
+        <p>gethigh · Dump them. Your URL takes the spot.</p>
         <nav className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
           <Link to="/how-it-works" className="hover:text-fg hover:underline">
             How it works

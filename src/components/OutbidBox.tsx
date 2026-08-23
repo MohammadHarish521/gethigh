@@ -93,9 +93,9 @@ export function OutbidBox({
       </h1>
       <p className="max-w-[520px] text-[16px] leading-[1.4] font-medium tracking-[-0.36px] text-muted sm:text-[18px]">
         <span className="font-semibold text-fire-deep">
-          Pay their bid — they hit $0
-        </span>{" "}
-        and fall to last. Want the seat yourself? Paste a URL. Bids start at $1.
+          Dump them — your URL takes the spot
+        </span>
+        . They hit $0 and last. Or bid from $1 to climb.
       </p>
 
       <div className="flex w-full max-w-[640px] flex-col items-center gap-2">

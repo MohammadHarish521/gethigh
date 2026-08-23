@@ -83,9 +83,10 @@ export function PaymentStatusView({
     const rank = status.bid?.dumpRank;
     const missed = rank == null;
     const held = formatHeld(status.bid?.dumpHeldSeconds);
+    const claim = status.claimProduct;
     const share = `I paid ${formatMoney(status.payment.amount)} to dump ${name}${
       rank ? ` from #${rank}` : ""
-    } after ${held}.`;
+    } after ${held}${claim ? ` and took the spot with ${claim.name}` : ""}.`;
 
     if (missed) {
       return (
@@ -112,14 +113,17 @@ export function PaymentStatusView({
     return (
       <div className="card px-6 py-10 text-center">
         <p className="mx-auto inline-flex rounded-full bg-orange-soft px-2.5 py-1 text-[15px] font-medium tracking-[-0.3px] text-fire-deep">
-          Dumped
+          {status.becameNumberOne ? "You took the spot" : "Dumped"}
         </p>
         <h1 className="font-display mt-4 text-[44px] leading-[0.98] font-extrabold tracking-[-0.06em]">
-          {name}
+          {status.claimProduct?.name ?? name}
         </h1>
         <p className="mt-2 text-sm font-medium tracking-[-0.3px] text-muted">
-          Paid {formatMoney(status.payment.amount)}
-          {rank ? ` to knock them from #${rank}` : ""} after {held}.
+          Paid {formatMoney(status.payment.amount)} to dump {name}
+          {rank ? ` from #${rank}` : ""} after {held}
+          {status.claimProduct?.rank
+            ? `. You’re #${status.claimProduct.rank}.`
+            : "."}
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <button

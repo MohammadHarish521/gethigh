@@ -90,5 +90,6 @@ export type PaymentStatus = {
     dumpHeldSeconds?: number | null;
   } | null;
   product: Product | null;
+  claimProduct?: Product | null;
   becameNumberOne: boolean;
 };
