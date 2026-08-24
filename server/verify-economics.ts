@@ -12,6 +12,7 @@ process.env.NODE_ENV = "test";
 const { db } = await import("./db.js");
 const { applyDecay } = await import("./decay.js");
 const {
+  boardEntryBid,
   confirmPayment,
   createBidCheckout,
   createDumpCheckout,
@@ -173,6 +174,71 @@ check(
   "ten days of decay matches the anchor curve exactly",
   priceOf(claim.id) === tenDays,
   `$313 -> $${priceOf(claim.id)} (expected $${tenDays})`,
+);
+
+// --- No two listings can hold the same price ----------------------------
+const boardTop = (
+  db
+    .prepare("SELECT MAX(current_bid) AS top FROM products WHERE bid_count > 0")
+    .get() as { top: number }
+).top;
+const entry = boardEntryBid();
+
+async function listingRejected(startingBid: number, url: string) {
+  try {
+    await createProductWithStartingBid({
+      ...user,
+      name: "Gatecrasher",
+      description: "Tries to slip onto the board below the top.",
+      url,
+      logoUrl: "data:image/svg+xml;utf8,<svg/>",
+      creatorName: "Tester",
+      startingBid,
+    });
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+check(
+  "a new listing cannot enter at the $5 floor once the board is above it",
+  await listingRejected(5, "https://floor-verify.example"),
+  `board top is $${boardTop}, so entry costs $${entry}`,
+);
+check(
+  "a new listing cannot tie the current top",
+  await listingRejected(boardTop, "https://tie-verify.example"),
+  `$${boardTop} rejected against a $${boardTop} board`,
+);
+
+const entrant = await createProductWithStartingBid({
+  ...user,
+  name: "Entrant",
+  description: "Pays the entry price.",
+  url: "https://entry-verify.example",
+  logoUrl: "data:image/svg+xml;utf8,<svg/>",
+  creatorName: "Tester",
+  startingBid: entry,
+});
+confirmPayment(entrant.paymentId);
+const prices = (
+  db
+    .prepare(
+      "SELECT current_bid FROM products WHERE bid_count > 0 AND current_bid > 0",
+    )
+    .all() as Array<{ current_bid: number }>
+).map((row) => row.current_bid);
+
+check(
+  "clearing the board is accepted and lands at #1",
+  priceOf(entrant.productId!) === entry && entry > boardTop,
+  `entered at $${entry} over a $${boardTop} board`,
+);
+check(
+  "every live listing holds a distinct price",
+  new Set(prices).size === prices.length,
+  `prices on the board: ${prices.join(", ")}`,
 );
 
 // --- Recurring revenue on the real board --------------------------------

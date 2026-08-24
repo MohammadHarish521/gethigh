@@ -52,12 +52,29 @@ function bidKind(bid: BidRow) {
   return bid.kind === "dump" ? "dump" : "bid";
 }
 
+/**
+ * Highest live price anywhere on the board. Every paid bid has to clear this,
+ * otherwise a brand-new listing could enter at the $5 floor forever and sit
+ * tied with the listings already at that price.
+ */
+function boardTopBid() {
+  const row = db
+    .prepare("SELECT MAX(current_bid) AS top FROM products WHERE bid_count > 0")
+    .get() as { top: number | null } | undefined;
+  return row?.top ?? 0;
+}
+
+/** Cheapest bid the board will accept right now, from any entry point. */
+export function boardEntryBid() {
+  return minimumNextBid(boardTopBid());
+}
+
 export function getProductRank(productId: string) {
   const ranked = db
     .prepare(
       `SELECT id FROM products
        WHERE bid_count > 0
-       ORDER BY current_bid DESC, current_bid_at ASC, created_at ASC`,
+       ORDER BY current_bid DESC, current_bid_at DESC, created_at DESC`,
     )
     .all() as Array<{ id: string }>;
 
@@ -180,12 +197,14 @@ export async function createBidCheckout(input: {
     throw new HttpError(404, "Product not found.");
   }
 
-  const charge = bidCharge(product.current_bid, amount);
+  // A bid has to clear both the listing it lands on and the top of the board,
+  // so prices only ever move up and no two listings can tie.
+  const benchmark = Math.max(product.current_bid, boardTopBid());
+  const charge = bidCharge(benchmark, amount);
   if (charge === null) {
-    const minBid = minimumNextBid(product.current_bid);
     throw new HttpError(
       400,
-      `Bid must be at least $${minBid}. Current highest bid is $${product.current_bid}.`,
+      `Bid must be at least $${minimumNextBid(benchmark)}. The top of the board is $${benchmark}.`,
     );
   }
 
@@ -320,6 +339,14 @@ export async function createProductWithStartingBid(input: {
     throw new HttpError(
       400,
       `Starting bid must be a whole dollar amount of at least $${MIN_BID}.`,
+    );
+  }
+
+  const entry = boardEntryBid();
+  if (amount < entry) {
+    throw new HttpError(
+      400,
+      `A bid has to clear the whole board, which costs at least $${entry} right now. To take a cheaper spot, dump the listing sitting in it.`,
     );
   }
 

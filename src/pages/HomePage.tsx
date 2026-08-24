@@ -42,7 +42,6 @@ export function HomePage() {
   }, []);
 
   const existing = findExisting(products, url);
-  const previewRank = rankForAmount(products, amount, existing?.id);
 
   function onDump(product: Product) {
     setError(null);
@@ -79,11 +78,8 @@ export function HomePage() {
           setUrl(value);
           setError(null);
         }}
-        previewRank={previewRank}
         existingBid={existing?.currentBid ?? null}
         error={error}
-        liveCount={products.length}
-        boardReady={!loading}
         onSubmit={async () => {
           try {
             const listing = parseListingInput(url);
@@ -192,18 +188,6 @@ function findExisting(products: Product[], raw: string) {
   } catch {
     return null;
   }
-}
-
-function rankForAmount(
-  products: Product[],
-  amount: number,
-  excludeId?: string,
-) {
-  return (
-    products.filter(
-      (product) => product.id !== excludeId && product.currentBid >= amount,
-    ).length + 1
-  );
 }
 
 function Board({

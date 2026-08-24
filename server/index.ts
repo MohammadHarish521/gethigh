@@ -21,6 +21,7 @@ import {
   verifyPassword,
 } from "./auth.js";
 import {
+  boardEntryBid,
   confirmPayment,
   createBidCheckout,
   createDumpCheckout,
@@ -47,6 +48,7 @@ import {
 } from "./ranking.js";
 import { isPlaceholderDescription } from "./listingMeta.js";
 import { fetchSiteIcon } from "./favicon.js";
+import { recordPresence } from "./presence.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3001;
@@ -179,6 +181,10 @@ app.get("/api/config", (_req, res) => {
   });
 });
 
+app.post("/api/presence", (req, res) => {
+  res.json(recordPresence(req, res));
+});
+
 app.post(
   "/api/auth/register",
   asyncHandler(async (req, res) => {
@@ -248,7 +254,7 @@ app.get(
       .prepare(
         `SELECT * FROM products
          WHERE bid_count > 0
-         ORDER BY current_bid DESC, current_bid_at ASC, created_at ASC`,
+         ORDER BY current_bid DESC, current_bid_at DESC, created_at DESC`,
       )
       .all() as ProductRow[];
 
@@ -261,7 +267,7 @@ app.get(
         .prepare(
           `SELECT * FROM products
            WHERE bid_count > 0
-           ORDER BY current_bid DESC, current_bid_at ASC, created_at ASC`,
+           ORDER BY current_bid DESC, current_bid_at DESC, created_at DESC`,
         )
         .all() as ProductRow[];
     }
@@ -631,7 +637,9 @@ function toProductDto(product: ProductRow, rank: number | null) {
     currentBidAt: product.current_bid_at,
     bidCount: product.bid_count,
     clickCount: product.click_count ?? 0,
-    minNextBid: minimumNextBid(product.current_bid),
+    // A bid always takes #1, so the price to bid on any listing is the price
+    // to clear the whole board — never just this listing's own next step.
+    minNextBid: Math.max(minimumNextBid(product.current_bid), boardEntryBid()),
     dumpCost: dumpPrice(product.current_bid),
     decayPerDay: decayPerDay(product.current_bid),
     rank,

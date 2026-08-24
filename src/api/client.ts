@@ -38,6 +38,8 @@ export const api = {
       dumpPremium: number;
       decayPerDay: number;
     }>("/api/config"),
+  presence: () =>
+    request<{ live: number; views: number }>("/api/presence", { method: "POST" }),
   me: () => request<{ user: User | null }>("/api/auth/me"),
   login: (email: string, password: string) =>
     request<{ user: User }>("/api/auth/login", {

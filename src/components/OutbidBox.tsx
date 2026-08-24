@@ -1,99 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { MIN_BID, MIN_RAISE } from "../lib/constants";
+import { usePresence } from "../hooks/usePresence";
+import { MIN_RAISE } from "../lib/constants";
 import { formatMoney } from "../utils/format";
-
-const LIVE_KEY = "gh_presence_live";
-const VIEWS_EXTRA_KEY = "gh_presence_views_extra";
-const VIEWS_BASE = 500;
-
-function clamp(n: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, n));
-}
-
-function randInt(min: number, max: number) {
-  return min + Math.floor(Math.random() * (max - min + 1));
-}
-
-function readStored(storage: Storage, key: string) {
-  try {
-    const raw = storage.getItem(key);
-    if (raw == null) return null;
-    const n = Number(raw);
-    return Number.isFinite(n) ? n : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeStored(storage: Storage, key: string, n: number) {
-  try {
-    storage.setItem(key, String(n));
-  } catch {
-    /* private mode / blocked storage */
-  }
-}
-
-function walk(current: number, min: number, max: number, maxStep: number) {
-  if (min >= max) return min;
-  const dir = Math.random() < 0.5 ? -1 : 1;
-  const mag = randInt(1, maxStep);
-  return clamp(current + dir * mag, min, max);
-}
-
-function seedLive(liveMin: number, liveMax: number) {
-  return randInt(liveMin + 2, Math.min(liveMax, liveMin + 8));
-}
-
-/** Live = 20 + listings on the board + a walk. Views = 500 + live + extra. */
-function usePresenceCounts(boardCount: number, boardReady: boolean) {
-  const liveMin = 20 + boardCount;
-  const liveMax = liveMin + 14;
-
-  const [live, setLive] = useState(() => seedLive(20, 34));
-  const [extra, setExtra] = useState(() => {
-    const stored = readStored(sessionStorage, VIEWS_EXTRA_KEY);
-    if (stored != null) return clamp(stored, 16, 72);
-    return randInt(22, 48);
-  });
-
-  useEffect(() => {
-    if (!boardReady) return;
-    setLive((n) => {
-      if (n >= liveMin && n <= liveMax) return n;
-      const stored = readStored(sessionStorage, LIVE_KEY);
-      if (stored != null && stored >= liveMin && stored <= liveMax) {
-        return stored;
-      }
-      return seedLive(liveMin, liveMax);
-    });
-  }, [boardReady, liveMin, liveMax]);
-
-  useEffect(() => {
-    writeStored(sessionStorage, LIVE_KEY, live);
-  }, [live]);
-
-  useEffect(() => {
-    writeStored(sessionStorage, VIEWS_EXTRA_KEY, extra);
-  }, [extra]);
-
-  useEffect(() => {
-    if (!boardReady) return;
-    let timeout: ReturnType<typeof setTimeout>;
-    const schedule = () => {
-      timeout = setTimeout(() => {
-        setLive((n) => walk(n, liveMin, liveMax, Math.random() < 0.3 ? 2 : 1));
-        if (Math.random() < 0.55) {
-          setExtra((n) => walk(n, 16, 72, 1));
-        }
-        schedule();
-      }, randInt(4000, 8000));
-    };
-    schedule();
-    return () => clearTimeout(timeout);
-  }, [boardReady, liveMin, liveMax]);
-
-  return { live, views: VIEWS_BASE + live + extra };
-}
 
 type OutbidBoxProps = {
   claimPrice: number;
@@ -101,11 +9,8 @@ type OutbidBoxProps = {
   onAmount: (amount: number) => void;
   url: string;
   onUrl: (url: string) => void;
-  previewRank: number;
   onSubmit: () => Promise<void> | void;
   error: string | null;
-  liveCount?: number;
-  boardReady?: boolean;
   existingBid?: number | null;
 };
 
@@ -115,16 +20,13 @@ export function OutbidBox({
   onAmount,
   url,
   onUrl,
-  previewRank,
   onSubmit,
   error,
-  liveCount = 0,
-  boardReady = true,
   existingBid = null,
 }: OutbidBoxProps) {
   const [paying, setPaying] = useState(false);
   const [draft, setDraft] = useState(() => String(amount));
-  const { live, views } = usePresenceCounts(liveCount, boardReady);
+  const presence = usePresence();
 
   useEffect(() => {
     setDraft(String(amount));
@@ -133,14 +35,14 @@ export function OutbidBox({
   function setBidFromDraft(raw: string) {
     const digits = raw.replace(/\D/g, "").slice(0, 7);
     setDraft(digits);
-    const parsed = parseAmount(digits);
+    const parsed = parseAmount(digits, claimPrice);
     if (parsed !== null) onAmount(parsed);
   }
 
   function commitDraft() {
-    const parsed = parseAmount(draft);
+    const parsed = parseAmount(draft, claimPrice);
     if (parsed === null) {
-      const fallback = Math.max(MIN_BID, amount);
+      const fallback = Math.max(claimPrice, amount);
       setDraft(String(fallback));
       onAmount(fallback);
       return;
@@ -159,7 +61,6 @@ export function OutbidBox({
     }
   }
 
-  const takesTop = amount >= claimPrice;
   const chargeNote =
     existingBid != null && existingBid > 0
       ? `You sit at ${formatMoney(existingBid)} — this charges ${formatMoney(amount)} on top.`
@@ -173,11 +74,11 @@ export function OutbidBox({
             className="live-dot inline-block h-2.5 w-2.5 rounded-full bg-live"
             aria-hidden="true"
           />
-          <b className="num font-bold">{live}</b> online now
+          <b className="num font-bold">{presence?.live ?? "—"}</b> online now
         </span>
         <span>
           <b className="num font-bold text-fg">
-            {views.toLocaleString("en-US")}
+            {presence ? presence.views.toLocaleString("en-US") : "—"}
           </b>{" "}
           views so far
         </span>
@@ -189,14 +90,15 @@ export function OutbidBox({
         take their <span className="dump-word">spot</span>
       </h1>
       <p className="max-w-[520px] text-[16px] leading-[1.4] font-medium tracking-[-0.36px] text-muted sm:text-[18px]">
-        They hit $0 and last. Or bid from {formatMoney(MIN_BID)} to climb.
+        They hit $0 and last. Or bid {formatMoney(claimPrice)} to take #1
+        outright.
       </p>
 
       <div className="flex w-full max-w-[640px] flex-col items-center gap-2">
         <div className="flex items-end justify-center gap-[17px] pb-2">
           <StepButton
             label={`Decrease bid by $${MIN_RAISE}`}
-            onClick={() => onAmount(Math.max(MIN_BID, amount - MIN_RAISE))}
+            onClick={() => onAmount(Math.max(claimPrice, amount - MIN_RAISE))}
           >
             −
           </StepButton>
@@ -269,18 +171,16 @@ export function OutbidBox({
       </div>
 
       <p className="max-w-[424px] text-[14px] leading-[1.4] font-medium tracking-[-0.3px] text-muted-strong">
-        {takesTop
-          ? `This takes #1. ${chargeNote} Every spot bleeds 5% a day, so #1 only stays #1 while you feed it.`
-          : `This lands at #${previewRank}. ${chargeNote}`}
+        {`This takes #1. ${chargeNote} Every spot bleeds 5% a day, so #1 only stays #1 while you feed it.`}
       </p>
     </section>
   );
 }
 
-function parseAmount(raw: string) {
+function parseAmount(raw: string, floor: number) {
   if (!raw) return null;
   const value = Number(raw);
-  if (!Number.isInteger(value) || value < MIN_BID) return null;
+  if (!Number.isInteger(value) || value < floor) return null;
   return value;
 }
 

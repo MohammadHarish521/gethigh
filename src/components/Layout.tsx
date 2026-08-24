@@ -1,8 +1,12 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { usePresence } from "../hooks/usePresence";
 import { Navbar } from "./Navbar";
 
 export function Layout({ children }: { children: ReactNode }) {
+  // Counts the visit on every route, not just the pages that render the tally.
+  usePresence();
+
   return (
     <div className="flex min-h-svh flex-col bg-bg text-fg">
       <Navbar />

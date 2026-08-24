@@ -82,8 +82,22 @@ db.exec(`
     processed_at TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS counters (
+    key TEXT PRIMARY KEY,
+    value INTEGER NOT NULL DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS visitors (
+    id TEXT PRIMARY KEY,
+    first_seen_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_visitors_seen
+    ON visitors(last_seen_at);
+
   CREATE INDEX IF NOT EXISTS idx_products_rank
-    ON products(current_bid DESC, current_bid_at ASC);
+    ON products(current_bid DESC, current_bid_at DESC);
 
   CREATE INDEX IF NOT EXISTS idx_bids_product
     ON bids(product_id, status, amount DESC);
@@ -101,6 +115,12 @@ db.exec(`
   CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_polar_order
     ON payments(polar_order_id)
     WHERE polar_order_id IS NOT NULL;
+`);
+
+db.exec(`
+  DROP INDEX IF EXISTS idx_products_rank;
+  CREATE INDEX IF NOT EXISTS idx_products_rank
+    ON products(current_bid DESC, current_bid_at DESC);
 `);
 
 function addColumn(table: string, column: string, definition: string) {

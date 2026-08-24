@@ -10,7 +10,7 @@ const steps = [
   {
     n: "2",
     title: "Or take the seat",
-    body: "Paste a URL or @handle and pay what you type. Bids start at $5 and each raise has to clear the current price by 10%. Every bid is charged in full.",
+    body: "Paste a URL or @handle and pay what you type. A bid always takes #1, so it has to clear the top of the board by $5 or 10%, whichever is bigger. Two listings can never sit at the same price. Every bid is charged in full.",
     tone: "text-accent",
   },
   {
