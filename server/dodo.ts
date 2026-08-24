@@ -9,11 +9,36 @@ export function isDodoConfigured() {
 }
 
 export function getDodoEnvironment(): "test_mode" | "live_mode" {
-  return env("DODO_PAYMENTS_ENV") === "live_mode" ? "live_mode" : "test_mode";
+  const explicit = env("DODO_PAYMENTS_ENV");
+  if (explicit === "live_mode" || explicit === "test_mode") return explicit;
+  return env("NODE_ENV") === "production" ? "live_mode" : "test_mode";
 }
 
 export function getAppUrl() {
   return env("APP_URL").replace(/\/$/, "") || "http://localhost:5173";
+}
+
+export function assertProductionPayments() {
+  if (env("NODE_ENV") !== "production" && !/gethigh\.today/i.test(getAppUrl())) {
+    return;
+  }
+
+  const appUrl = getAppUrl();
+  if (/localhost|127\.0\.0\.1/i.test(appUrl)) {
+    throw new Error(
+      "Production APP_URL must be https://www.gethigh.today — localhost would send paying customers to your laptop.",
+    );
+  }
+  if (getDodoEnvironment() !== "live_mode") {
+    throw new Error(
+      "DODO_PAYMENTS_ENV must be live_mode on gethigh.today. Test keys cannot take real payments.",
+    );
+  }
+  if (!isDodoConfigured() || !env("DODO_PAYMENTS_WEBHOOK_KEY")) {
+    throw new Error(
+      "Set DODO_PAYMENTS_API_KEY, DODO_PRODUCT_ID, and DODO_PAYMENTS_WEBHOOK_KEY from the Live dashboard (Test Mode off).",
+    );
+  }
 }
 
 export function getDodoClient() {

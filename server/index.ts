@@ -32,7 +32,7 @@ import {
   listRecentDumps,
   markWebhookProcessed,
 } from "./bidding.js";
-import { getDodoEnvironment, isDodoConfigured, unwrapDodoWebhook } from "./dodo.js";
+import { assertProductionPayments, getDodoEnvironment, isDodoConfigured, unwrapDodoWebhook } from "./dodo.js";
 import { applyDecay, startDecayScheduler } from "./decay.js";
 import {
   DECAY_PER_DAY,
@@ -577,6 +577,13 @@ if (existsSync(distDir)) {
 }
 
 startDecayScheduler();
+
+try {
+  assertProductionPayments();
+} catch (error) {
+  console.error(error instanceof Error ? error.message : error);
+  process.exit(1);
+}
 
 app.listen(PORT, () => {
   console.log(`gethigh API on http://localhost:${PORT}`);
