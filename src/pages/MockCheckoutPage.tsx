@@ -47,7 +47,7 @@ export function MockCheckoutPage() {
   return (
     <div className="mx-auto max-w-md">
       <div className="mb-3 rounded-full bg-orange-soft px-4 py-2 text-xs font-medium text-fire-deep">
-        Development checkout. Polar is not configured, so this mock payment stands in.
+        Development checkout. Dodo is not configured, so this mock payment stands in.
       </div>
       <div className="card p-6">
         <h1 className="font-display text-2xl font-extrabold tracking-[-0.06em]">Complete payment</h1>

@@ -6,7 +6,8 @@ import type { PaymentStatus } from "../types";
 
 export function PaymentSuccessPage() {
   const [params] = useSearchParams();
-  const paymentId = params.get("payment_id");
+  const paymentId =
+    params.get("gethigh_payment_id") || params.get("payment_id");
   const [status, setStatus] = useState<PaymentStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

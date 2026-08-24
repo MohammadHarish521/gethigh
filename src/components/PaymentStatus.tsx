@@ -51,7 +51,7 @@ export function PaymentStatusView({
       <div className="card px-5 py-12 text-center">
         <p className="font-semibold text-fg-strong">Confirming payment…</p>
         <p className="mt-1 text-sm text-muted">
-          Polar webhooks update the board only after the payment is verified.
+          Waiting for the charge to land on the board.
         </p>
       </div>
     );

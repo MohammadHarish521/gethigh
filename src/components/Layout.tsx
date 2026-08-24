@@ -18,7 +18,7 @@ export function Layout({ children }: { children: ReactNode }) {
           <Link to="/" className="hover:text-fg hover:underline">
             Leaderboard
           </Link>
-          <span>Payments by Polar</span>
+          <span>Payments by Dodo</span>
         </nav>
       </footer>
     </div>

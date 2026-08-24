@@ -7,7 +7,7 @@ import {
   type ProductRow,
 } from "./db.js";
 import { HttpError } from "./http.js";
-import { createPolarCheckout, getAppUrl, isPolarConfigured } from "./polar.js";
+import { createDodoCheckout, getAppUrl, isDodoConfigured } from "./dodo.js";
 import {
   MIN_BID,
   bidCharge,
@@ -127,7 +127,7 @@ function insertCheckoutRows(input: {
   paymentAmount?: number;
   kind: "bid" | "dump";
   createdAt: string;
-  provider: "polar" | "mock";
+  provider: "dodo" | "mock";
   dumpClaimProductId?: string | null;
 }) {
   const paymentAmount = input.paymentAmount ?? input.amount;
@@ -192,7 +192,7 @@ export async function createBidCheckout(input: {
   const bidId = crypto.randomUUID();
   const paymentId = crypto.randomUUID();
   const createdAt = nowIso();
-  const provider = isPolarConfigured() ? "polar" : "mock";
+  const provider = isDodoConfigured() ? "dodo" : "mock";
 
   db.transaction(() => {
     insertCheckoutRows({
@@ -243,7 +243,7 @@ export async function createDumpCheckout(input: {
   const bidId = crypto.randomUUID();
   const paymentId = crypto.randomUUID();
   const createdAt = nowIso();
-  const provider = isPolarConfigured() ? "polar" : "mock";
+  const provider = isDodoConfigured() ? "dodo" : "mock";
 
   db.transaction(() => {
     let claimProductId = existingClaim?.id;
@@ -367,7 +367,7 @@ export async function createProductWithStartingBid(input: {
   const bidId = crypto.randomUUID();
   const paymentId = crypto.randomUUID();
   const createdAt = nowIso();
-  const provider = isPolarConfigured() ? "polar" : "mock";
+  const provider = isDodoConfigured() ? "dodo" : "mock";
 
   const insert = db.transaction(() => {
     db.prepare(
@@ -443,28 +443,27 @@ async function finalizeCheckout(input: {
   userId: string;
   userEmail: string;
   userName: string;
-  provider: "polar" | "mock";
+  provider: "dodo" | "mock";
   kind: "bid" | "dump";
 }) {
   const productName =
     input.kind === "dump" ? `Dump ${input.product.name}` : input.product.name;
 
-  if (input.provider === "polar") {
+  if (input.provider === "dodo") {
     try {
-      const checkout = await createPolarCheckout({
+      const checkout = await createDodoCheckout({
         paymentId: input.paymentId,
         bidId: input.bidId,
         productId: input.product.id,
         productName,
         amountDollars: input.amount,
-        userId: input.userId,
         userEmail: input.userEmail,
         userName: input.userName,
         kind: input.kind,
       });
 
       db.prepare(
-        "UPDATE payments SET polar_checkout_id = ?, checkout_url = ? WHERE id = ?",
+        "UPDATE payments SET dodo_session_id = ?, checkout_url = ? WHERE id = ?",
       ).run(checkout.id, checkout.url, input.paymentId);
 
       return {
@@ -483,8 +482,8 @@ async function finalizeCheckout(input: {
           input.bidId,
         );
       })();
-      console.error("Polar checkout failed", error);
-      throw new HttpError(502, "Could not start Polar checkout. Try again.");
+      console.error("Dodo checkout failed", error);
+      throw new HttpError(502, "Could not start checkout. Try again.");
     }
   }
 
@@ -505,7 +504,7 @@ async function finalizeCheckout(input: {
 
 export function confirmPayment(
   paymentId: string,
-  extras: { polarOrderId?: string | null; polarCheckoutId?: string | null } = {},
+  extras: { dodoPaymentId?: string | null; dodoSessionId?: string | null } = {},
 ): ConfirmResult {
   const apply = db.transaction((): ConfirmResult => {
     const payment = getPayment(paymentId);
@@ -545,13 +544,13 @@ export function confirmPayment(
       `UPDATE payments
        SET status = 'succeeded',
            processed_at = ?,
-           polar_order_id = COALESCE(?, polar_order_id),
-           polar_checkout_id = COALESCE(?, polar_checkout_id)
+           dodo_payment_id = COALESCE(?, dodo_payment_id),
+           dodo_session_id = COALESCE(?, dodo_session_id)
        WHERE id = ?`,
     ).run(
       processedAt,
-      extras.polarOrderId ?? null,
-      extras.polarCheckoutId ?? null,
+      extras.dodoPaymentId ?? null,
+      extras.dodoSessionId ?? null,
       payment.id,
     );
 
@@ -698,14 +697,14 @@ export function failPayment(paymentId: string) {
 
 export function findPaymentForWebhook(input: {
   paymentId?: string | null;
-  checkoutId?: string | null;
-  orderId?: string | null;
+  sessionId?: string | null;
+  dodoPaymentId?: string | null;
 }) {
-  if (input.checkoutId) {
-    const byCheckout = db
-      .prepare("SELECT * FROM payments WHERE polar_checkout_id = ?")
-      .get(input.checkoutId) as PaymentRow | undefined;
-    if (byCheckout) return byCheckout;
+  if (input.sessionId) {
+    const bySession = db
+      .prepare("SELECT * FROM payments WHERE dodo_session_id = ?")
+      .get(input.sessionId) as PaymentRow | undefined;
+    if (bySession) return bySession;
   }
 
   if (input.paymentId) {
@@ -713,11 +712,11 @@ export function findPaymentForWebhook(input: {
     if (byId) return byId;
   }
 
-  if (input.orderId) {
-    const byOrder = db
-      .prepare("SELECT * FROM payments WHERE polar_order_id = ?")
-      .get(input.orderId) as PaymentRow | undefined;
-    if (byOrder) return byOrder;
+  if (input.dodoPaymentId) {
+    const byDodo = db
+      .prepare("SELECT * FROM payments WHERE dodo_payment_id = ?")
+      .get(input.dodoPaymentId) as PaymentRow | undefined;
+    if (byDodo) return byDodo;
   }
 
   return null;

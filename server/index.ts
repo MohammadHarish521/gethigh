@@ -6,7 +6,6 @@ import { fileURLToPath } from "node:url";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
-import { validateEvent, WebhookVerificationError } from "@polar-sh/sdk/webhooks";
 import { db, type BidRow, type PaymentRow, type ProductRow, type UserRow } from "./db.js";
 import { seedIfEmpty } from "./seed.js";
 import { HttpError, asyncHandler, errorHandler } from "./http.js";
@@ -33,7 +32,7 @@ import {
   listRecentDumps,
   markWebhookProcessed,
 } from "./bidding.js";
-import { isPolarConfigured } from "./polar.js";
+import { getDodoEnvironment, isDodoConfigured, unwrapDodoWebhook } from "./dodo.js";
 import { applyDecay, startDecayScheduler } from "./decay.js";
 import {
   DECAY_PER_DAY,
@@ -66,70 +65,71 @@ app.use(
 app.use(cookieParser());
 
 app.post(
-  "/api/webhooks/polar",
+  "/api/webhooks/dodo",
   express.raw({ type: "application/json" }),
   asyncHandler(async (req, res) => {
-    const secret = process.env.POLAR_WEBHOOK_SECRET;
+    const secret = process.env.DODO_PAYMENTS_WEBHOOK_KEY?.trim();
     if (!secret) {
-      res.status(503).json({ error: "Polar webhook secret is not configured." });
+      res.status(503).json({ error: "Dodo webhook secret is not configured." });
       return;
     }
 
+    const rawBody = Buffer.isBuffer(req.body)
+      ? req.body.toString("utf8")
+      : typeof req.body === "string"
+        ? req.body
+        : JSON.stringify(req.body ?? {});
+
     const headers: Record<string, string> = {};
-    for (const [key, value] of Object.entries(req.headers)) {
+    for (const key of ["webhook-id", "webhook-signature", "webhook-timestamp"]) {
+      const value = req.headers[key];
       if (typeof value === "string") headers[key] = value;
       else if (Array.isArray(value) && value[0]) headers[key] = value[0];
     }
 
     let event;
     try {
-      event = validateEvent(req.body, headers, secret);
+      event = unwrapDodoWebhook(rawBody, headers);
     } catch (error) {
-      if (error instanceof WebhookVerificationError) {
-        res.status(403).json({ error: "Invalid webhook signature." });
-        return;
-      }
-      throw error;
+      console.error("Dodo webhook signature failed", error);
+      res.status(403).json({ error: "Invalid webhook signature." });
+      return;
     }
 
-    const eventId = headers["webhook-id"] || `${event.type}:${Date.now()}`;
+    const eventId =
+      headers["webhook-id"] || `${event.type}:${event.timestamp}:${Date.now()}`;
     if (!markWebhookProcessed(eventId)) {
       res.status(202).send("");
       return;
     }
 
     try {
-      if (event.type === "order.paid") {
-        const payment = findPaymentForWebhook({
-          paymentId: metadataString(event.data.metadata, "paymentId"),
-          checkoutId: event.data.checkoutId,
-          orderId: event.data.id,
+      const data = "data" in event ? event.data : null;
+      const paymentMeta =
+        data && typeof data === "object" && "metadata" in data
+          ? (data.metadata as Record<string, unknown> | undefined)
+          : undefined;
+      const dodoPaymentId =
+        data && typeof data === "object" && "payment_id" in data
+          ? String((data as { payment_id?: unknown }).payment_id ?? "")
+          : "";
+
+      const payment = findPaymentForWebhook({
+        paymentId: metadataString(paymentMeta, "paymentId"),
+        dodoPaymentId: dodoPaymentId || null,
+      });
+
+      if (event.type === "payment.succeeded" && payment) {
+        confirmPayment(payment.id, {
+          dodoPaymentId: dodoPaymentId || null,
         });
-        if (payment) {
-          confirmPayment(payment.id, {
-            polarOrderId: event.data.id,
-            polarCheckoutId: event.data.checkoutId,
-          });
-        }
       }
 
-      if (event.type === "checkout.updated") {
-        if (event.data.status === "succeeded") {
-          const payment = findPaymentForWebhook({
-            paymentId: metadataString(event.data.metadata, "paymentId"),
-            checkoutId: event.data.id,
-          });
-          if (payment) {
-            confirmPayment(payment.id, { polarCheckoutId: event.data.id });
-          }
-        }
-        if (event.data.status === "failed" || event.data.status === "expired") {
-          const payment = findPaymentForWebhook({
-            paymentId: metadataString(event.data.metadata, "paymentId"),
-            checkoutId: event.data.id,
-          });
-          if (payment) failPayment(payment.id);
-        }
+      if (
+        (event.type === "payment.failed" || event.type === "payment.cancelled") &&
+        payment
+      ) {
+        failPayment(payment.id);
       }
     } catch (error) {
       db.prepare("DELETE FROM processed_webhooks WHERE event_id = ?").run(eventId);
@@ -170,7 +170,7 @@ app.get(
 
 app.get("/api/config", (_req, res) => {
   res.json({
-    mockPayments: !isPolarConfigured(),
+    mockPayments: !isDodoConfigured(),
     minBid: MIN_BID,
     minRaise: MIN_RAISE,
     minRaisePct: MIN_RAISE_PCT,
@@ -516,8 +516,8 @@ app.get("/api/payments/:id", (req, res, next) => {
 app.post(
   "/api/payments/:id/mock-confirm",
   asyncHandler(async (req, res) => {
-    if (isPolarConfigured()) {
-      throw new HttpError(403, "Mock payments are disabled when Polar is configured.");
+    if (isDodoConfigured()) {
+      throw new HttpError(403, "Mock payments are disabled when Dodo is configured.");
     }
 
     const payment = db
@@ -545,8 +545,8 @@ app.post(
 app.post(
   "/api/payments/:id/mock-fail",
   asyncHandler(async (req, res) => {
-    if (isPolarConfigured()) {
-      throw new HttpError(403, "Mock payments are disabled when Polar is configured.");
+    if (isDodoConfigured()) {
+      throw new HttpError(403, "Mock payments are disabled when Dodo is configured.");
     }
 
     const payment = db
@@ -581,9 +581,9 @@ startDecayScheduler();
 app.listen(PORT, () => {
   console.log(`gethigh API on http://localhost:${PORT}`);
   console.log(
-    isPolarConfigured()
-      ? "Polar payments: enabled"
-      : "Polar payments: not configured — using mock checkout",
+    isDodoConfigured()
+      ? `Dodo payments: enabled (${getDodoEnvironment()})`
+      : "Dodo payments: not configured — using mock checkout",
   );
   console.log(
     `Board economics: $${MIN_BID} floor · +${Math.round(MIN_RAISE_PCT * 100)}% min raise · ` +
@@ -637,5 +637,7 @@ function metadataString(
   key: string,
 ) {
   const value = metadata?.[key];
-  return typeof value === "string" ? value : null;
+  if (typeof value === "string" && value) return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return null;
 }

@@ -87,10 +87,27 @@ export function OutbidBox({
         )}
       </div>
 
-      <h1 className="font-display text-[44px] leading-[0.98] font-extrabold tracking-[-0.06em] text-fg sm:text-[72px] lg:text-[98px]">
-        <span className="dump-word">Dump</span> whoever’s
+      <h1
+        aria-label="Dump whoever’s at #1"
+        className="font-display text-[44px] leading-[0.98] font-extrabold tracking-[-0.06em] text-fg sm:text-[72px] lg:text-[98px]"
+      >
+        <span className="inline-flex max-w-full flex-nowrap items-center justify-center">
+          <img
+            src="/Dumptext.png"
+            alt=""
+            className="mr-[0.05em] inline-block h-[1.05em] w-[3.1em] max-w-[calc(100%-4.4em)] object-cover object-center sm:max-w-[3.1em]"
+          />
+          whoever’s
+        </span>
         <br />
-        at <span className="dump-word">#1</span>
+        <span className="inline-flex items-center justify-center">
+          at
+          <img
+            src="/hash1.png"
+            alt=""
+            className="ml-[0.08em] inline-block h-[1.05em] w-[1.43em] object-cover object-center"
+          />
+        </span>
       </h1>
       <p className="max-w-[520px] text-[16px] leading-[1.4] font-medium tracking-[-0.36px] text-muted sm:text-[18px]">
         <span className="font-semibold text-fire-deep">

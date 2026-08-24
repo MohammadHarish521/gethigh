@@ -78,7 +78,7 @@ export type PaymentStatus = {
     id: string;
     amount: number;
     status: "pending" | "succeeded" | "failed";
-    provider: "polar" | "mock";
+    provider: "dodo" | "mock" | "polar";
     createdAt: string;
     processedAt: string | null;
   };

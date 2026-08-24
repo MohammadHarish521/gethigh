@@ -68,6 +68,8 @@ db.exec(`
     provider TEXT NOT NULL,
     polar_checkout_id TEXT,
     polar_order_id TEXT,
+    dodo_session_id TEXT,
+    dodo_payment_id TEXT,
     checkout_url TEXT,
     created_at TEXT NOT NULL,
     processed_at TEXT,
@@ -114,6 +116,18 @@ addColumn("bids", "dump_claim_product_id", "TEXT");
 addColumn("products", "click_count", "INTEGER NOT NULL DEFAULT 0");
 addColumn("products", "decayed_at", "TEXT");
 addColumn("products", "decay_anchor", "INTEGER");
+addColumn("payments", "dodo_session_id", "TEXT");
+addColumn("payments", "dodo_payment_id", "TEXT");
+
+db.exec(`
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_dodo_session
+    ON payments(dodo_session_id)
+    WHERE dodo_session_id IS NOT NULL;
+
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_dodo_payment
+    ON payments(dodo_payment_id)
+    WHERE dodo_payment_id IS NOT NULL;
+`);
 
 // Listings that predate decay start their clock now rather than being
 // retroactively drained for every day they sat on the board.
@@ -172,9 +186,11 @@ export type PaymentRow = {
   user_id: string;
   amount: number;
   status: "pending" | "succeeded" | "failed";
-  provider: "polar" | "mock";
+  provider: "dodo" | "mock" | "polar";
   polar_checkout_id: string | null;
   polar_order_id: string | null;
+  dodo_session_id: string | null;
+  dodo_payment_id: string | null;
   checkout_url: string | null;
   created_at: string;
   processed_at: string | null;
