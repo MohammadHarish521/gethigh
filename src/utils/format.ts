@@ -6,6 +6,14 @@ export function formatMoney(amount: number) {
   }).format(amount);
 }
 
+export function clicksPerDollar(clicks: number, bid: number) {
+  if (!Number.isFinite(clicks) || !Number.isFinite(bid) || bid <= 0) return null;
+  const n = clicks / bid;
+  if (n >= 10) return n.toFixed(0);
+  if (n >= 1) return n.toFixed(1).replace(/\.0$/, "");
+  return n.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+}
+
 export function formatHeld(seconds: number | null | undefined) {
   if (seconds == null || seconds < 1) return "moments";
   const minutes = Math.floor(seconds / 60);

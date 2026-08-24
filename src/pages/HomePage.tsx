@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
-import { DumpExplainer, DumpFeed, RecentDumps } from "../components/DumpFeed";
+import { DumpFeed, ActivityFeed, RecentDumps } from "../components/DumpFeed";
 import { DumpSpotModal } from "../components/DumpSpotModal";
 import { Leaderboard } from "../components/Leaderboard";
 import { OutbidBox } from "../components/OutbidBox";
 import { useProducts } from "../hooks/useProducts";
 import { MIN_BID, minimumNextBid } from "../lib/constants";
-import type { Product, RecentDump } from "../types";
+import type { ActivityItem, Product, RecentDump } from "../types";
 import { listingsMatch, parseListingInput } from "../utils/format";
 import { makeLogo } from "../utils/logo";
 
@@ -21,6 +21,7 @@ export function HomePage() {
   const [dumpTarget, setDumpTarget] = useState<Product | null>(null);
   const [dumpError, setDumpError] = useState<string | null>(null);
   const [dumps, setDumps] = useState<RecentDump[]>([]);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
 
   const topBid = products[0]?.currentBid ?? 0;
   const claimPrice = products[0]?.minNextBid ?? minimumNextBid(topBid);
@@ -35,10 +36,26 @@ export function HomePage() {
   }, [searchParams]);
 
   useEffect(() => {
-    api
-      .recentDumps()
-      .then((data) => setDumps(data.dumps))
-      .catch(() => setDumps([]));
+    let cancelled = false;
+
+    function loadFeed() {
+      Promise.all([api.recentDumps(), api.recentActivity()])
+        .then(([dumpData, activityData]) => {
+          if (cancelled) return;
+          setDumps(dumpData.dumps);
+          setActivity(activityData.activity);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setDumps([]);
+          setActivity([]);
+        });
+    }
+
+    loadFeed();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const existing = findExisting(products, url);
@@ -106,19 +123,13 @@ export function HomePage() {
       <div className="mt-8 lg:mt-10">
         <div className="hidden lg:grid lg:grid-cols-[240px_minmax(0,1fr)_240px] lg:items-start lg:gap-4 xl:grid-cols-[260px_minmax(0,1fr)_260px] xl:gap-5">
           <aside className="sticky top-24">
-            <DumpExplainer />
+            <ActivityFeed items={activity} />
           </aside>
           <div className="min-w-0">
             <Board
               loading={loading}
               loadError={loadError}
               products={products}
-              onBid={(product) => {
-                setUrl(product.url);
-                setAmount(product.minNextBid);
-                setError(null);
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
               onTakeOne={() => {
                 setAmount(claimPrice);
                 setError(null);
@@ -141,12 +152,6 @@ export function HomePage() {
             loading={loading}
             loadError={loadError}
             products={products}
-            onBid={(product) => {
-              setUrl(product.url);
-              setAmount(product.minNextBid);
-              setError(null);
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
             onTakeOne={() => {
               setAmount(claimPrice);
               setError(null);
@@ -158,6 +163,7 @@ export function HomePage() {
           <div className="mt-6">
             <DumpFeed
               dumps={dumps}
+              activity={activity}
               onDumpTop={products[0] ? () => onDump(products[0]) : undefined}
             />
           </div>
@@ -194,7 +200,6 @@ function Board({
   loading,
   loadError,
   products,
-  onBid,
   onTakeOne,
   onDump,
   dumpingId,
@@ -202,7 +207,6 @@ function Board({
   loading: boolean;
   loadError: string | null;
   products: Product[];
-  onBid: (product: Product) => void;
   onTakeOne: () => void;
   onDump: (product: Product) => void;
   dumpingId: string | null;
@@ -228,7 +232,6 @@ function Board({
   return (
     <Leaderboard
       products={products}
-      onBid={onBid}
       onTakeOne={onTakeOne}
       onDump={onDump}
       dumpingId={dumpingId}

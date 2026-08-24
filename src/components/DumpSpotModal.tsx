@@ -56,7 +56,7 @@ export function DumpSpotModal({
             id="dump-spot-title"
             className="text-[20px] font-semibold tracking-[-0.04em] text-fg-strong"
           >
-            Take this spot
+            Dump this spot
           </h2>
           <p className="mt-1 text-[14px] leading-[1.4] font-medium tracking-[-0.02em] text-muted">
             Dump {product.name}
@@ -83,7 +83,7 @@ export function DumpSpotModal({
         </label>
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <button type="submit" disabled={busy || !url.trim()} className="btn-fire w-full">
-          {busy ? "Starting…" : `Dump · take this spot · ${formatMoney(cost)}`}
+          {busy ? "Starting…" : `Dump · ${formatMoney(cost)}`}
         </button>
       </form>
     </Modal>

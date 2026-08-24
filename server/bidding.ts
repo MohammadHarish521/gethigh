@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import {
   db,
   nowIso,
+  type BidKind,
   type BidRow,
   type PaymentRow,
   type ProductRow,
@@ -756,6 +757,35 @@ export function markWebhookProcessed(eventId: string) {
     )
     .run(eventId, nowIso());
   return result.changes > 0;
+}
+
+export function listRecentActivity(limit = 12) {
+  return db
+    .prepare(
+      `SELECT
+         b.id, b.amount, b.kind, b.confirmed_at, b.created_at, b.dump_rank,
+         p.id AS product_id, p.name AS product_name, p.logo_url, p.url,
+         u.name AS user_name
+       FROM bids b
+       JOIN products p ON p.id = b.product_id
+       JOIN users u ON u.id = b.user_id
+       WHERE b.status = 'succeeded'
+       ORDER BY COALESCE(b.confirmed_at, b.created_at) DESC
+       LIMIT ?`,
+    )
+    .all(limit) as Array<{
+    id: string;
+    amount: number;
+    kind: BidKind;
+    confirmed_at: string | null;
+    created_at: string;
+    dump_rank: number | null;
+    product_id: string;
+    product_name: string;
+    logo_url: string;
+    url: string;
+    user_name: string;
+  }>;
 }
 
 export function listRecentDumps(limit = 8) {

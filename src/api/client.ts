@@ -3,6 +3,7 @@ import type {
   PaymentStatus,
   Product,
   RecentDump,
+  ActivityItem,
   User,
   UserBid,
 } from "../types";
@@ -82,6 +83,7 @@ export const api = {
       body: JSON.stringify({ productId, url }),
     }),
   recentDumps: () => request<{ dumps: RecentDump[] }>("/api/dumps"),
+  recentActivity: () => request<{ activity: ActivityItem[] }>("/api/activity"),
   myBids: () => request<{ bids: UserBid[] }>("/api/me/bids"),
   payment: (id: string) => request<PaymentStatus>(`/api/payments/${id}`),
   mockConfirm: (id: string) =>

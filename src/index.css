@@ -629,6 +629,149 @@ body {
   }
 }
 
+@keyframes dump-flip-front {
+  0%,
+  38% {
+    transform: rotateX(0deg);
+    opacity: 1;
+  }
+  50%,
+  88% {
+    transform: rotateX(-90deg);
+    opacity: 0;
+  }
+  100% {
+    transform: rotateX(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes dump-flip-back {
+  0%,
+  38% {
+    transform: rotateX(90deg);
+    opacity: 0;
+  }
+  50%,
+  88% {
+    transform: rotateX(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: rotateX(90deg);
+    opacity: 0;
+  }
+}
+
+@keyframes fire-pulse {
+  0%,
+  100% {
+    filter: brightness(1) saturate(1);
+  }
+  18% {
+    filter: brightness(1.18) saturate(1.15);
+  }
+  32% {
+    filter: brightness(0.96) saturate(1.05);
+  }
+  48% {
+    filter: brightness(1.22) saturate(1.2);
+  }
+  64% {
+    filter: brightness(1.06) saturate(1.08);
+  }
+  78% {
+    filter: brightness(1.16) saturate(1.18);
+  }
+}
+
+@keyframes fire-lick {
+  0%,
+  100% {
+    transform: translate3d(0, 18%, 0) scale(1);
+    opacity: 0.42;
+  }
+  25% {
+    transform: translate3d(-8%, 4%, 0) scale(1.08);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translate3d(6%, -6%, 0) scale(1.14);
+    opacity: 0.55;
+  }
+  75% {
+    transform: translate3d(-4%, 8%, 0) scale(1.05);
+    opacity: 0.78;
+  }
+}
+
+.dump-live {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.dump-live:not(:disabled) {
+  animation: fire-pulse 1.15s ease-in-out infinite;
+}
+
+.dump-live:not(:disabled)::after {
+  content: "";
+  position: absolute;
+  inset: -55% -25% -10%;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse at 50% 110%, rgb(255 210 90 / 0.85) 0%, transparent 52%),
+    radial-gradient(ellipse at 18% 100%, rgb(255 110 20 / 0.7) 0%, transparent 46%),
+    radial-gradient(ellipse at 82% 100%, rgb(255 160 50 / 0.75) 0%, transparent 44%);
+  mix-blend-mode: overlay;
+  animation: fire-lick 1.05s ease-in-out infinite;
+}
+
+.dump-live > * {
+  position: relative;
+  z-index: 1;
+}
+
+.dump-flip {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: bottom;
+}
+
+.dump-flip-sizer {
+  visibility: hidden;
+  white-space: nowrap;
+}
+
+.dump-flip-live {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  perspective: 240px;
+}
+
+.dump-flip-live > span {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+  backface-visibility: hidden;
+  transform-origin: 50% 50%;
+}
+
+.dump-flip-live > span:first-child {
+  animation: dump-flip-front 3.6s ease-in-out infinite;
+}
+
+.dump-flip-live > span:last-child {
+  font-size: 0.78em;
+  letter-spacing: -0.04em;
+  animation: dump-flip-back 3.6s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-up,
   .animate-modal-in,
@@ -638,7 +781,18 @@ body {
   .medal-bob,
   .card-rank-1::after,
   .card-rank-2::after,
-  .card-rank-3::after {
+  .card-rank-3::after,
+  .dump-live,
+  .dump-live:not(:disabled)::after,
+  .dump-flip-live > span {
     animation: none;
+  }
+
+  .dump-live:not(:disabled)::after {
+    content: none;
+  }
+
+  .dump-flip-live > span:last-child {
+    display: none;
   }
 }

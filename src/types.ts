@@ -47,6 +47,21 @@ export type RecentDump = {
   };
 };
 
+export type ActivityItem = {
+  id: string;
+  kind: "bid" | "dump";
+  amount: number;
+  rankBefore: number | null;
+  createdAt: string | null;
+  userName: string;
+  product: {
+    id: string;
+    name: string;
+    logoUrl: string;
+    url?: string;
+  };
+};
+
 export type UserBid = {
   id: string;
   amount: number;

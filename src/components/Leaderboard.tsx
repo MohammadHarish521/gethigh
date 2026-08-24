@@ -4,7 +4,6 @@ import { ProductCard } from "./ProductCard";
 
 type LeaderboardProps = {
   products: Product[];
-  onBid: (product: Product) => void;
   onTakeOne: () => void;
   onDump: (product: Product) => void;
   dumpingId?: string | null;
@@ -13,7 +12,6 @@ type LeaderboardProps = {
 
 export function Leaderboard({
   products,
-  onBid,
   onTakeOne,
   onDump,
   dumpingId,
@@ -52,8 +50,6 @@ export function Leaderboard({
         <ProductCard
           key={product.id}
           product={product}
-          onBid={onBid}
-          onTakeOne={onTakeOne}
           onDump={onDump}
           dumping={dumpingId === product.id}
           highlighted={flashId === product.id}
@@ -68,8 +64,6 @@ export function Leaderboard({
             <ProductCard
               key={product.id}
               product={product}
-              onBid={onBid}
-              onTakeOne={onTakeOne}
               onDump={onDump}
               dumping={dumpingId === product.id}
               highlighted={flashId === product.id}
@@ -86,8 +80,6 @@ export function Leaderboard({
             <ProductCard
               key={product.id}
               product={product}
-              onBid={onBid}
-              onTakeOne={onTakeOne}
               onDump={onDump}
               dumping={dumpingId === product.id}
               highlighted={flashId === product.id}

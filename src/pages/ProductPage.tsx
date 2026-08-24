@@ -4,12 +4,14 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { BidHistory } from "../components/BidHistory";
 import { BidModal } from "../components/BidModal";
+import { DumpFlipLabel } from "../components/DumpFlipLabel";
 import { DumpSpotModal } from "../components/DumpSpotModal";
 import { EmptyState } from "../components/EmptyState";
 import { ProductLogo } from "../components/ProductLogo";
 import { RankNumber } from "../components/RankNumber";
 import type { BidHistoryItem, Product } from "../types";
 import {
+  clicksPerDollar,
   formatMoney,
   formatTimeAgo,
   outboundPath,
@@ -86,6 +88,8 @@ export function ProductPage() {
       />
     );
   }
+
+  const perDollar = clicksPerDollar(clicks, product.currentBid);
 
   return (
     <div className="animate-fade-up mx-auto max-w-[792px]">
@@ -179,6 +183,14 @@ export function ProductPage() {
                   −{formatMoney(product.decayPerDay)}/day
                 </p>
               ) : null}
+              {perDollar ? (
+                <p
+                  title="Clicks generated per dollar on this listing"
+                  className="chip-clicks mt-2"
+                >
+                  <b className="num">{perDollar}</b> clicks/$
+                </p>
+              ) : null}
             </div>
             {dumpError ? (
               <p className="text-sm text-red-600">{dumpError}</p>
@@ -195,11 +207,18 @@ export function ProductPage() {
                 type="button"
                 onClick={onDump}
                 disabled={dumping}
-                className="btn-fire-soft w-full px-4 py-2 text-[15px] font-medium tracking-[-0.02em]"
+                aria-label={
+                  dumping
+                    ? "Dumping"
+                    : `Dump ${product.name} for ${formatMoney(product.dumpCost)}`
+                }
+                className="btn-fire-soft dump-live w-full px-4 py-2 text-[15px] font-medium tracking-[-0.02em]"
               >
-                {dumping
-                  ? "Starting…"
-                  : `Dump · ${formatMoney(product.dumpCost)}`}
+                <DumpFlipLabel
+                  cost={product.dumpCost}
+                  busy={dumping}
+                  busyLabel="Starting…"
+                />
               </button>
             ) : null}
           </div>

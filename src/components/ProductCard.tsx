@@ -2,19 +2,19 @@ import { Pointer } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Product } from "../types";
 import {
+  clicksPerDollar,
   formatMoney,
   formatTimeAgo,
   outboundPath,
   plural,
 } from "../utils/format";
+import { DumpFlipLabel } from "./DumpFlipLabel";
 import { RankBadge } from "./FloatingMedal";
 import { ProductLogo } from "./ProductLogo";
 import { RankNumber } from "./RankNumber";
 
 type ProductCardProps = {
   product: Product;
-  onBid: (product: Product) => void;
-  onTakeOne?: () => void;
   onDump: (product: Product) => void;
   dumping?: boolean;
   highlighted?: boolean;
@@ -25,8 +25,6 @@ type ProductCardProps = {
 
 export function ProductCard({
   product,
-  onBid,
-  onTakeOne,
   onDump,
   dumping,
   highlighted,
@@ -39,6 +37,7 @@ export function ProductCard({
   const isHero = density === "hero";
   const isFeatured = density === "featured" || featured;
   const [clicks, setClicks] = useState(product.clickCount ?? 0);
+  const perDollar = clicksPerDollar(clicks, product.currentBid);
 
   useEffect(() => {
     setClicks(product.clickCount ?? 0);
@@ -121,27 +120,28 @@ export function ProductCard({
                 onDump(product);
               }}
               disabled={dumping}
+              aria-label={
+                dumping
+                  ? "Dumping"
+                  : `Dump ${product.name} for ${formatMoney(dumpCost)}`
+              }
               className={
                 isHero || isFeatured
-                  ? "btn-fire px-4 py-2 text-[15px] font-medium tracking-[-0.02em]"
-                  : "btn-fire-soft font-medium tracking-[-0.02em]"
+                  ? "btn-fire dump-live px-4 py-2 text-[15px] font-medium tracking-[-0.02em]"
+                  : "btn-fire-soft dump-live font-medium tracking-[-0.02em]"
               }
             >
-              {dumping ? "Dumping…" : `Dump · ${formatMoney(dumpCost)}`}
+              <DumpFlipLabel cost={dumpCost} busy={dumping} />
             </button>
           ) : null}
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              if (dumpCost) onDump(product);
-              else if (onTakeOne) onTakeOne();
-              else onBid(product);
-            }}
-            className="btn-ghost px-3 py-1.5 text-[13px] font-medium tracking-[-0.02em]"
-          >
-            Take this spot
-          </button>
+          {perDollar ? (
+            <span
+              title="Clicks generated per dollar on this listing"
+              className="chip-clicks shrink-0"
+            >
+              <b className="num">{perDollar}</b> clicks/$
+            </span>
+          ) : null}
           <span className="ml-auto flex min-w-0 items-center gap-2">
             <span className="chip-clicks-blue shrink-0">
               <Pointer size={14} strokeWidth={2.4} aria-hidden="true" />

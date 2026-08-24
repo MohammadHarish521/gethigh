@@ -30,6 +30,7 @@ import {
   findPaymentForWebhook,
   getProductRank,
   hydrateListingCopy,
+  listRecentActivity,
   listRecentDumps,
   markWebhookProcessed,
 } from "./bidding.js";
@@ -401,6 +402,25 @@ app.get("/api/dumps", (_req, res) => {
       rankBefore: row.dump_rank,
       heldSeconds: row.dump_held_seconds,
       createdAt: row.confirmed_at,
+      product: {
+        id: row.product_id,
+        name: row.product_name,
+        logoUrl: row.logo_url,
+        url: row.url,
+      },
+    })),
+  });
+});
+
+app.get("/api/activity", (_req, res) => {
+  res.json({
+    activity: listRecentActivity().map((row) => ({
+      id: row.id,
+      kind: row.kind === "dump" ? "dump" : "bid",
+      amount: row.amount,
+      rankBefore: row.dump_rank,
+      createdAt: row.confirmed_at ?? row.created_at,
+      userName: row.user_name,
       product: {
         id: row.product_id,
         name: row.product_name,
