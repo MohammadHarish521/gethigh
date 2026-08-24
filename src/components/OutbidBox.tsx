@@ -2,6 +2,89 @@ import { useEffect, useState, type FormEvent } from "react";
 import { MIN_BID, MIN_RAISE } from "../lib/constants";
 import { formatMoney } from "../utils/format";
 
+const LIVE_KEY = "gh_presence_live";
+const VIEWS_EXTRA_KEY = "gh_presence_views_extra";
+const VIEWS_BASE = 500;
+
+function clamp(n: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, n));
+}
+
+function randInt(min: number, max: number) {
+  return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+function readStored(storage: Storage, key: string) {
+  try {
+    const raw = storage.getItem(key);
+    if (raw == null) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStored(storage: Storage, key: string, n: number) {
+  try {
+    storage.setItem(key, String(n));
+  } catch {
+    /* private mode / blocked storage */
+  }
+}
+
+function walk(current: number, min: number, max: number, maxStep: number) {
+  const step = randInt(-maxStep, maxStep);
+  if (step === 0) return current;
+  return clamp(current + step, min, max);
+}
+
+/** Live = 20+board. Views stay launch-scale: 500 + whoever is online + a little extra. */
+function usePresenceCounts(boardCount: number) {
+  const liveMin = 20 + boardCount;
+  const liveMax = liveMin + 14;
+
+  const [live, setLive] = useState(() => {
+    const stored = readStored(sessionStorage, LIVE_KEY);
+    if (stored != null) return clamp(stored, liveMin, liveMax);
+    return randInt(liveMin + 2, liveMin + 8);
+  });
+  const [extra, setExtra] = useState(() => {
+    const stored = readStored(sessionStorage, VIEWS_EXTRA_KEY);
+    if (stored != null) return clamp(stored, 16, 72);
+    return randInt(22, 48);
+  });
+
+  useEffect(() => {
+    setLive((n) => clamp(n, liveMin, liveMax));
+  }, [liveMin, liveMax]);
+
+  useEffect(() => {
+    writeStored(sessionStorage, LIVE_KEY, live);
+  }, [live]);
+
+  useEffect(() => {
+    writeStored(sessionStorage, VIEWS_EXTRA_KEY, extra);
+  }, [extra]);
+
+  useEffect(() => {
+    let timeout: ReturnType<typeof setTimeout>;
+    const schedule = () => {
+      timeout = setTimeout(() => {
+        setLive((n) => walk(n, liveMin, liveMax, Math.random() < 0.25 ? 2 : 1));
+        if (Math.random() < 0.45) {
+          setExtra((n) => walk(n, 16, 72, 1));
+        }
+        schedule();
+      }, randInt(6000, 11000));
+    };
+    schedule();
+    return () => clearTimeout(timeout);
+  }, [liveMin, liveMax]);
+
+  return { live, views: VIEWS_BASE + live + extra };
+}
+
 type OutbidBoxProps = {
   claimPrice: number;
   amount: number;
@@ -29,6 +112,7 @@ export function OutbidBox({
 }: OutbidBoxProps) {
   const [paying, setPaying] = useState(false);
   const [draft, setDraft] = useState(() => String(amount));
+  const { live, views } = usePresenceCounts(liveCount);
 
   useEffect(() => {
     setDraft(String(amount));
@@ -71,49 +155,29 @@ export function OutbidBox({
 
   return (
     <section className="mx-auto flex max-w-[900px] flex-col items-center gap-[18px] px-4 text-center sm:px-[50px]">
-      <div className="glass-pill max-w-full flex-nowrap gap-x-2 py-1 pr-4 pl-1 text-[13px] tracking-[-0.26px] text-muted">
-        <span className="chip-live gap-1.5 py-0.5 text-[12px] font-semibold">
-          <span className="live-dot inline-block h-2 w-2 rounded-full bg-live" />
-          Online
+      <div className="glass-pill inline-flex max-w-full flex-nowrap items-center justify-center gap-x-2 whitespace-nowrap py-[2px] pr-[10px] pl-[3px] text-[13px] tracking-[-0.26px] text-muted sm:gap-x-2.5 sm:pr-[22px]">
+        <span className="chip-live">
+          <span
+            className="live-dot inline-block h-2.5 w-2.5 rounded-full bg-live"
+            aria-hidden="true"
+          />
+          <b className="num font-bold">{live}</b> online now
         </span>
-        {liveCount === 0 ? (
-          <span>
-            <b className="font-bold text-fg-strong">{formatMoney(MIN_BID)}</b> takes #1
-          </span>
-        ) : (
-          <span>
-            <b className="font-bold text-fg-strong">{liveCount}</b> on the board
-          </span>
-        )}
+        <span>
+          <b className="num font-bold text-fg">
+            {views.toLocaleString("en-US")}
+          </b>{" "}
+          views so far
+        </span>
       </div>
 
-      <h1
-        aria-label="Dump whoever’s at #1"
-        className="font-display text-[44px] leading-[0.98] font-extrabold tracking-[-0.06em] text-fg sm:text-[72px] lg:text-[98px]"
-      >
-        <span className="inline-flex max-w-full flex-nowrap items-center justify-center">
-          <img
-            src="/Dumptext.png"
-            alt=""
-            className="mr-[0.05em] inline-block h-[1.05em] w-[3.1em] max-w-[calc(100%-4.4em)] object-cover object-center sm:max-w-[3.1em]"
-          />
-          whoever’s
-        </span>
+      <h1 className="font-display text-[44px] leading-[0.98] font-extrabold tracking-[-0.06em] text-fg sm:text-[72px] lg:text-[98px]">
+        <span className="dump-word">Dump</span> anyone and
         <br />
-        <span className="inline-flex items-center justify-center">
-          at
-          <img
-            src="/hash1.png"
-            alt=""
-            className="ml-[0.08em] inline-block h-[1.05em] w-[1.43em] object-cover object-center"
-          />
-        </span>
+        take their <span className="dump-word">spot</span>
       </h1>
       <p className="max-w-[520px] text-[16px] leading-[1.4] font-medium tracking-[-0.36px] text-muted sm:text-[18px]">
-        <span className="font-semibold text-fire-deep">
-          Dump them — your URL takes the spot
-        </span>
-        . They hit $0 and last. Or bid from {formatMoney(MIN_BID)} to climb.
+        They hit $0 and last. Or bid from {formatMoney(MIN_BID)} to climb.
       </p>
 
       <div className="flex w-full max-w-[640px] flex-col items-center gap-2">
