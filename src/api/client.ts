@@ -37,6 +37,7 @@ export const api = {
       minRaisePct: number;
       dumpPremium: number;
       decayPerDay: number;
+      revenue: number;
     }>("/api/config"),
   presence: () =>
     request<{ live: number; views: number }>("/api/presence", { method: "POST" }),

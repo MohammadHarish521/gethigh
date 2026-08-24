@@ -171,6 +171,7 @@ app.get(
 );
 
 app.get("/api/config", (_req, res) => {
+  const revenue = boardRevenue();
   res.json({
     mockPayments: !isDodoConfigured(),
     minBid: MIN_BID,
@@ -178,6 +179,7 @@ app.get("/api/config", (_req, res) => {
     minRaisePct: MIN_RAISE_PCT,
     dumpPremium: DUMP_PREMIUM,
     decayPerDay: DECAY_PER_DAY,
+    revenue,
   });
 });
 
@@ -621,6 +623,21 @@ function findProduct(id: string) {
   return db
     .prepare("SELECT * FROM products WHERE lower(name) = lower(?)")
     .get(needle) as ProductRow | undefined;
+}
+
+function boardRevenue() {
+  if (getDodoEnvironment() !== "live_mode") return 0;
+
+  const row = db
+    .prepare(
+      `SELECT COALESCE(SUM(amount), 0) AS total
+       FROM payments
+       WHERE status = 'succeeded'
+         AND provider = 'dodo'
+         AND dodo_payment_id IS NOT NULL`,
+    )
+    .get() as { total: number };
+  return Number(row.total) || 0;
 }
 
 function toProductDto(product: ProductRow, rank: number | null) {
