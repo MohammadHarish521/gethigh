@@ -83,6 +83,7 @@ export function HomePage() {
         existingBid={existing?.currentBid ?? null}
         error={error}
         liveCount={products.length}
+        boardReady={!loading}
         onSubmit={async () => {
           try {
             const listing = parseListingInput(url);

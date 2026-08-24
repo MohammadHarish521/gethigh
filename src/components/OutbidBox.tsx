@@ -34,21 +34,22 @@ function writeStored(storage: Storage, key: string, n: number) {
 }
 
 function walk(current: number, min: number, max: number, maxStep: number) {
-  const step = randInt(-maxStep, maxStep);
-  if (step === 0) return current;
-  return clamp(current + step, min, max);
+  if (min >= max) return min;
+  const dir = Math.random() < 0.5 ? -1 : 1;
+  const mag = randInt(1, maxStep);
+  return clamp(current + dir * mag, min, max);
 }
 
-/** Live = 20+board. Views stay launch-scale: 500 + whoever is online + a little extra. */
-function usePresenceCounts(boardCount: number) {
+function seedLive(liveMin: number, liveMax: number) {
+  return randInt(liveMin + 2, Math.min(liveMax, liveMin + 8));
+}
+
+/** Live = 20 + listings on the board + a walk. Views = 500 + live + extra. */
+function usePresenceCounts(boardCount: number, boardReady: boolean) {
   const liveMin = 20 + boardCount;
   const liveMax = liveMin + 14;
 
-  const [live, setLive] = useState(() => {
-    const stored = readStored(sessionStorage, LIVE_KEY);
-    if (stored != null) return clamp(stored, liveMin, liveMax);
-    return randInt(liveMin + 2, liveMin + 8);
-  });
+  const [live, setLive] = useState(() => seedLive(20, 34));
   const [extra, setExtra] = useState(() => {
     const stored = readStored(sessionStorage, VIEWS_EXTRA_KEY);
     if (stored != null) return clamp(stored, 16, 72);
@@ -56,8 +57,16 @@ function usePresenceCounts(boardCount: number) {
   });
 
   useEffect(() => {
-    setLive((n) => clamp(n, liveMin, liveMax));
-  }, [liveMin, liveMax]);
+    if (!boardReady) return;
+    setLive((n) => {
+      if (n >= liveMin && n <= liveMax) return n;
+      const stored = readStored(sessionStorage, LIVE_KEY);
+      if (stored != null && stored >= liveMin && stored <= liveMax) {
+        return stored;
+      }
+      return seedLive(liveMin, liveMax);
+    });
+  }, [boardReady, liveMin, liveMax]);
 
   useEffect(() => {
     writeStored(sessionStorage, LIVE_KEY, live);
@@ -68,19 +77,20 @@ function usePresenceCounts(boardCount: number) {
   }, [extra]);
 
   useEffect(() => {
+    if (!boardReady) return;
     let timeout: ReturnType<typeof setTimeout>;
     const schedule = () => {
       timeout = setTimeout(() => {
-        setLive((n) => walk(n, liveMin, liveMax, Math.random() < 0.25 ? 2 : 1));
-        if (Math.random() < 0.45) {
+        setLive((n) => walk(n, liveMin, liveMax, Math.random() < 0.3 ? 2 : 1));
+        if (Math.random() < 0.55) {
           setExtra((n) => walk(n, 16, 72, 1));
         }
         schedule();
-      }, randInt(6000, 11000));
+      }, randInt(4000, 8000));
     };
     schedule();
     return () => clearTimeout(timeout);
-  }, [liveMin, liveMax]);
+  }, [boardReady, liveMin, liveMax]);
 
   return { live, views: VIEWS_BASE + live + extra };
 }
@@ -95,6 +105,7 @@ type OutbidBoxProps = {
   onSubmit: () => Promise<void> | void;
   error: string | null;
   liveCount?: number;
+  boardReady?: boolean;
   existingBid?: number | null;
 };
 
@@ -108,11 +119,12 @@ export function OutbidBox({
   onSubmit,
   error,
   liveCount = 0,
+  boardReady = true,
   existingBid = null,
 }: OutbidBoxProps) {
   const [paying, setPaying] = useState(false);
   const [draft, setDraft] = useState(() => String(amount));
-  const { live, views } = usePresenceCounts(liveCount);
+  const { live, views } = usePresenceCounts(liveCount, boardReady);
 
   useEffect(() => {
     setDraft(String(amount));
