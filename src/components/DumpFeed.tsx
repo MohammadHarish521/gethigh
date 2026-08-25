@@ -1,15 +1,51 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import type { ActivityItem, RecentDump } from "../types";
-import { formatMoney, formatTimeAgo } from "../utils/format";
+import type { ActivityItem, Product, RecentDump } from "../types";
+import { clicksPerDollar, formatMoney, formatTimeAgo } from "../utils/format";
 import { DumpFlipLabel } from "./DumpFlipLabel";
-import { dumpBadge, FloatingBadge, recentDumpBadge } from "./FloatingMedal";
+import {
+  clicksBadge,
+  dumpBadge,
+  FloatingBadge,
+  recentDumpBadge,
+} from "./FloatingMedal";
 import { ProductLogo } from "./ProductLogo";
+
+const HOLD_MS = 4000;
+const FADE_MS = 260;
 
 export function ActivityFeed({ items }: { items: ActivityItem[] }) {
   const empty = items.length === 0;
+  const [index, setIndex] = useState(0);
+  const [leaving, setLeaving] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const leadId = items[0]?.id ?? "";
+  const item = items.length ? items[index % items.length] : null;
+
+  useEffect(() => {
+    setIndex(0);
+    setLeaving(false);
+  }, [leadId]);
+
+  useEffect(() => {
+    if (empty || items.length <= 1 || paused) return;
+    const hold = window.setTimeout(() => setLeaving(true), HOLD_MS);
+    return () => window.clearTimeout(hold);
+  }, [empty, items.length, index, paused, leadId]);
+
+  useEffect(() => {
+    if (!leaving) return;
+    const fade = window.setTimeout(() => {
+      setIndex((current) =>
+        items.length ? (current + 1) % items.length : 0,
+      );
+      setLeaving(false);
+    }, FADE_MS);
+    return () => window.clearTimeout(fade);
+  }, [leaving, items.length]);
 
   return (
-    <section className="card-sm flex max-h-[min(70vh,640px)] flex-col px-4 py-4">
+    <section className="card-sm flex flex-col px-4 py-4">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <h2 className="text-[15px] font-semibold tracking-[-0.03em] text-fg-strong">
@@ -27,54 +63,86 @@ export function ActivityFeed({ items }: { items: ActivityItem[] }) {
         </div>
         <FloatingBadge {...dumpBadge} glowStrength="soft" />
       </div>
-      {empty ? (
+      {empty || !item ? (
         <p className="mt-3 text-[14px] leading-[1.45] font-medium tracking-[-0.02em] text-muted">
           Bids and dumps land here.
         </p>
       ) : (
-        <ul className="mt-3 space-y-2.5 overflow-y-auto pr-1">
-          {items.map((item) => {
-            const dumped = item.kind === "dump";
-            return (
-              <li key={item.id} className="flex items-center gap-2">
-                <ProductLogo
-                  src={item.product.logoUrl}
-                  name={item.product.name}
-                  siteUrl={item.product.url}
-                  size="xs"
-                />
-                <div className="min-w-0 flex-1">
-                  <Link
-                    to={`/product/${item.product.id}`}
-                    className="block truncate text-[14px] font-medium tracking-[-0.02em] text-fg-strong hover:underline"
-                  >
-                    {item.product.name}
-                  </Link>
-                  <p className="truncate text-[12px] font-medium tracking-[-0.02em] text-muted">
-                    <span className={dumped ? "text-fire-deep" : "text-accent"}>
-                      {dumped ? "Dumped" : "Bid"}
-                    </span>
-                    {item.createdAt ? (
-                      <>
-                        <span aria-hidden="true"> · </span>
-                        <time>{formatTimeAgo(item.createdAt)}</time>
-                      </>
-                    ) : null}
-                  </p>
-                </div>
-                <span
-                  className={`ml-auto shrink-0 text-[12px] font-medium tracking-[-0.02em] ${
-                    dumped ? "text-fire-deep" : "text-accent"
-                  }`}
-                >
-                  {formatMoney(item.amount)}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+        <div
+          className="mt-3 min-h-[40px] overflow-hidden"
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+          onFocus={() => setPaused(true)}
+          onBlur={() => setPaused(false)}
+        >
+          <ActivityNotice
+            key={item.id}
+            item={item}
+            leaving={leaving}
+            position={index + 1}
+            total={items.length}
+          />
+        </div>
       )}
     </section>
+  );
+}
+
+function ActivityNotice({
+  item,
+  leaving,
+  position,
+  total,
+}: {
+  item: ActivityItem;
+  leaving: boolean;
+  position: number;
+  total: number;
+}) {
+  const dumped = item.kind === "dump";
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-label={`${item.product.name} ${dumped ? "dumped" : "bid"} ${formatMoney(item.amount)}, ${position} of ${total}`}
+      className={`flex items-center gap-2 ${
+        leaving ? "animate-notify-out" : "animate-notify-in"
+      }`}
+    >
+      <ProductLogo
+        src={item.product.logoUrl}
+        name={item.product.name}
+        siteUrl={item.product.url}
+        size="xs"
+      />
+      <div className="min-w-0 flex-1">
+        <Link
+          to={`/product/${item.product.id}`}
+          className="block truncate text-[14px] font-medium tracking-[-0.02em] text-fg-strong hover:underline"
+        >
+          {item.product.name}
+        </Link>
+        <p className="truncate text-[12px] font-medium tracking-[-0.02em] text-muted">
+          <span className={dumped ? "text-fire-deep" : "text-accent"}>
+            {dumped ? "Dumped" : "Bid"}
+          </span>
+          {item.createdAt ? (
+            <>
+              <span aria-hidden="true"> · </span>
+              <time>{formatTimeAgo(item.createdAt)}</time>
+            </>
+          ) : null}
+        </p>
+      </div>
+      <span
+        className={`ml-auto shrink-0 text-[12px] font-medium tracking-[-0.02em] ${
+          dumped ? "text-fire-deep" : "text-accent"
+        }`}
+      >
+        {formatMoney(item.amount)}
+      </span>
+    </div>
   );
 }
 
@@ -149,19 +217,92 @@ export function RecentDumps({
   );
 }
 
+export function TopClicks({ products }: { products: Product[] }) {
+  const top = products.slice(0, 3);
+  if (top.length === 0) return null;
+
+  return (
+    <section className="card-sm flex flex-col px-4 py-4">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[15px] font-semibold tracking-[-0.03em] text-fg-strong">
+            Clicks/$
+          </h2>
+          <p className="mt-1 text-[12px] font-medium tracking-[-0.02em] text-muted">
+            Top 3
+          </p>
+        </div>
+        <FloatingBadge {...clicksBadge} glowStrength="soft" />
+      </div>
+      <ul className="mt-3 space-y-2.5">
+        {top.map((product) => {
+          const perDollar = clicksPerDollar(
+            product.clickCount ?? 0,
+            product.currentBid,
+          );
+          return (
+            <li key={product.id} className="flex items-center gap-2">
+              <ProductLogo
+                src={product.logoUrl}
+                name={product.name}
+                siteUrl={product.url}
+                size="xs"
+              />
+              <div className="min-w-0 flex-1">
+                <Link
+                  to={`/product/${product.id}`}
+                  className="block truncate text-[14px] font-medium tracking-[-0.02em] text-fg-strong hover:underline"
+                >
+                  {product.name}
+                </Link>
+                <div className="mt-0.5 flex items-center justify-between gap-2">
+                  {product.rank != null ? (
+                    <span className="text-[12px] font-medium tracking-[-0.02em] text-muted">
+                      #{product.rank}
+                    </span>
+                  ) : (
+                    <span />
+                  )}
+                  {perDollar ? (
+                    <span
+                      title="Clicks generated per dollar on this listing"
+                      className="chip-clicks shrink-0 py-0.5 text-[12px]"
+                    >
+                      <b className="num">{perDollar}</b> clicks/$
+                    </span>
+                  ) : (
+                    <span className="text-[12px] font-medium tracking-[-0.02em] text-muted">
+                      —
+                    </span>
+                  )}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 export function DumpFeed({
   dumps,
   activity,
+  products,
   onDumpTop,
 }: {
   dumps: RecentDump[];
   activity: ActivityItem[];
+  products: Product[];
   onDumpTop?: () => void;
 }) {
   return (
-    <div className="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2">
+    <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
       <ActivityFeed items={activity} />
-      <RecentDumps dumps={dumps} onDumpTop={onDumpTop} />
+      <div className="flex flex-col gap-3">
+        <RecentDumps dumps={dumps} onDumpTop={onDumpTop} />
+        <TopClicks products={products} />
+      </div>
     </div>
   );
 }

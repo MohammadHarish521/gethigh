@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowDown, Crown, Medal, Radio } from "lucide-react";
+import { ArrowDown, Crown, Medal, Pointer, Radio } from "lucide-react";
 
 const medals = {
   1: {
@@ -115,4 +115,11 @@ export const recentDumpBadge = {
   glow: "bg-[#8fbf14]",
   face: "bg-gradient-to-b from-[#c4e85a] to-[#508200] text-white",
   ring: "ring-[3px] ring-[#eaffb0]",
+} as const;
+
+export const clicksBadge = {
+  icon: Pointer,
+  glow: "bg-[#3d6600]",
+  face: "bg-gradient-to-b from-[#7aad2a] to-[#3d6600] text-white",
+  ring: "ring-[3px] ring-[#d4f0a0]",
 } as const;

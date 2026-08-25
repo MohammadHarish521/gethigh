@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
-import { DumpFeed, ActivityFeed, RecentDumps } from "../components/DumpFeed";
+import {
+  DumpFeed,
+  ActivityFeed,
+  RecentDumps,
+  TopClicks,
+} from "../components/DumpFeed";
 import { DumpSpotModal } from "../components/DumpSpotModal";
 import { Leaderboard } from "../components/Leaderboard";
 import { OutbidBox } from "../components/OutbidBox";
@@ -139,11 +144,12 @@ export function HomePage() {
               dumpingId={dumpingId}
             />
           </div>
-          <aside className="sticky top-24">
+          <aside className="sticky top-24 flex flex-col gap-4">
             <RecentDumps
               dumps={dumps}
               onDumpTop={products[0] ? () => onDump(products[0]) : undefined}
             />
+            <TopClicks products={products} />
           </aside>
         </div>
 
@@ -164,6 +170,7 @@ export function HomePage() {
             <DumpFeed
               dumps={dumps}
               activity={activity}
+              products={products}
               onDumpTop={products[0] ? () => onDump(products[0]) : undefined}
             />
           </div>
