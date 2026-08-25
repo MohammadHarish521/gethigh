@@ -47,24 +47,14 @@ export function BidModal({ product, open, onClose }: BidModalProps) {
 
   return (
     <Modal open={open} onClose={onClose} labelledBy="bid-title">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <ProductLogo src={product.logoUrl} name={product.name} siteUrl={product.url} />
-          <div className="min-w-0">
-            <h2 id="bid-title" className="truncate text-lg font-semibold">
-              Bid on {product.name}
-            </h2>
-            <p className="text-sm text-muted">Highest confirmed bid takes the more visible spot.</p>
-          </div>
+      <div className="flex items-start gap-3">
+        <ProductLogo src={product.logoUrl} name={product.name} siteUrl={product.url} />
+        <div className="min-w-0">
+          <h2 id="bid-title" className="truncate text-lg font-semibold">
+            Bid on {product.name}
+          </h2>
+          <p className="text-sm text-muted">Highest confirmed bid takes the more visible spot.</p>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md px-2 py-1 text-muted hover:bg-neutral-100"
-          aria-label="Close"
-        >
-          ×
-        </button>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
