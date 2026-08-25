@@ -84,11 +84,16 @@ export function OutbidBox({
         </span>
       </div>
 
-      <h1 className="font-display text-[44px] leading-[0.98] font-extrabold tracking-[-0.06em] text-fg sm:text-[72px] lg:text-[98px]">
-        <span className="dump-word">Dump</span> anyone and
-        <br />
-        take their <span className="dump-word">spot</span>
-      </h1>
+      <div className="@container w-full">
+        <h1 className="font-display w-full text-[length:clamp(2.25rem,12.2cqi,4.5rem)] leading-[0.98] font-extrabold tracking-[-0.06em] text-fg">
+          <span className="block whitespace-nowrap">
+            <span className="dump-word">Dump</span> anyone and
+          </span>
+          <span className="block whitespace-nowrap">
+            take their <span className="dump-word">spot</span>
+          </span>
+        </h1>
+      </div>
       <p className="max-w-[520px] text-[16px] leading-[1.4] font-medium tracking-[-0.36px] text-muted sm:text-[18px]">
         They hit $0 and last. Or bid {formatMoney(claimPrice)} to take #1
         outright.
