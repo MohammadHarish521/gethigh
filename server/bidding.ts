@@ -49,8 +49,10 @@ function getPayment(id: string) {
     | undefined;
 }
 
-function bidKind(bid: BidRow) {
-  return bid.kind === "dump" ? "dump" : "bid";
+function bidKind(bid: BidRow): BidKind {
+  if (bid.kind === "dump") return "dump";
+  if (bid.kind === "sponsor") return "sponsor";
+  return "bid";
 }
 
 /**
@@ -125,7 +127,7 @@ function normalizeClaimUrl(raw: string) {
   return url;
 }
 
-function letterLogo(name: string) {
+export function letterLogo(name: string) {
   const letter = name.trim().charAt(0).toUpperCase() || "G";
   return `data:image/svg+xml;utf8,${encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
@@ -136,14 +138,14 @@ function letterLogo(name: string) {
   )}`;
 }
 
-function insertCheckoutRows(input: {
+export function insertCheckoutRows(input: {
   bidId: string;
   paymentId: string;
   productId: string;
   userId: string;
   amount: number;
   paymentAmount?: number;
-  kind: "bid" | "dump";
+  kind: BidKind;
   createdAt: string;
   provider: "dodo" | "mock";
   dumpClaimProductId?: string | null;
@@ -463,7 +465,7 @@ export async function hydrateListingCopy(product: ProductRow) {
   return { ...product, name, description };
 }
 
-async function finalizeCheckout(input: {
+export async function finalizeCheckout(input: {
   paymentId: string;
   bidId: string;
   product: ProductRow;
@@ -472,7 +474,7 @@ async function finalizeCheckout(input: {
   userEmail: string;
   userName: string;
   provider: "dodo" | "mock";
-  kind: "bid" | "dump";
+  kind: BidKind;
 }) {
   const productName =
     input.kind === "dump" ? `Dump ${input.product.name}` : input.product.name;
@@ -582,7 +584,34 @@ export function confirmPayment(
       payment.id,
     );
 
-    if (bidKind(bid) === "dump") {
+    if (bidKind(bid) === "sponsor") {
+      db.prepare(
+        `UPDATE bids SET status = 'succeeded', confirmed_at = ? WHERE id = ?`,
+      ).run(processedAt, bid.id);
+
+      const claim = db
+        .prepare("SELECT slot, name, url, logo_url FROM sponsor_claims WHERE bid_id = ?")
+        .get(bid.id) as
+        | { slot: string; name: string; url: string; logo_url: string }
+        | undefined;
+
+      if (claim) {
+        db.prepare(
+          `UPDATE sponsor_seats
+           SET name = ?, url = ?, logo_url = ?, user_id = ?, payment_id = ?,
+               claimed_at = ?, pending_payment_id = NULL, pending_at = NULL
+           WHERE slot = ? AND claimed_at IS NULL`,
+        ).run(
+          claim.name,
+          claim.url,
+          claim.logo_url,
+          bid.user_id,
+          payment.id,
+          processedAt,
+          claim.slot,
+        );
+      }
+    } else if (bidKind(bid) === "dump") {
       const canDump =
         product.current_bid >= 1 && product.current_bid <= bid.amount;
 
@@ -697,7 +726,10 @@ export function confirmPayment(
 
     return {
       alreadyProcessed: false,
-      becameNumberOne: getProductRank(rankedId) === 1,
+      becameNumberOne:
+        bidKind(updatedBid) === "sponsor"
+          ? false
+          : getProductRank(rankedId) === 1,
       product: updatedProduct,
       claimProduct,
       bid: updatedBid,
@@ -719,6 +751,11 @@ export function failPayment(paymentId: string) {
     db.prepare("UPDATE bids SET status = 'failed' WHERE id = ?").run(
       payment.bid_id,
     );
+    db.prepare(
+      `UPDATE sponsor_seats
+       SET pending_payment_id = NULL, pending_at = NULL
+       WHERE pending_payment_id = ?`,
+    ).run(payment.id);
   });
   apply();
 }
@@ -770,6 +807,7 @@ export function listRecentActivity(limit = 12) {
        JOIN products p ON p.id = b.product_id
        JOIN users u ON u.id = b.user_id
        WHERE b.status = 'succeeded'
+         AND IFNULL(b.kind, 'bid') IN ('bid', 'dump')
        ORDER BY COALESCE(b.confirmed_at, b.created_at) DESC
        LIMIT ?`,
     )

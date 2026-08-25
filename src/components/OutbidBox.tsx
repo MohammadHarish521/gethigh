@@ -69,9 +69,9 @@ export function OutbidBox({
   return (
     <section className="mx-auto flex max-w-[900px] flex-col items-center gap-[18px] px-4 text-center sm:px-[50px]">
       <div className="glass-pill inline-flex max-w-full flex-nowrap items-center justify-center gap-x-2 whitespace-nowrap py-[2px] pr-[10px] pl-[3px] text-[13px] tracking-[-0.26px] text-muted sm:gap-x-2.5 sm:pr-[22px]">
-        <span className="chip-live">
+        <span className="chip-live-cta">
           <span
-            className="live-dot inline-block h-2.5 w-2.5 rounded-full bg-live"
+            className="live-dot inline-block h-2 w-2 rounded-full"
             aria-hidden="true"
           />
           <b className="num font-bold">{presence?.live ?? "—"}</b> online now

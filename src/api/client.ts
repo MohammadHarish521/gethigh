@@ -6,6 +6,7 @@ import type {
   ActivityItem,
   User,
   UserBid,
+  SponsorSeat,
 } from "../types";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -84,6 +85,13 @@ export const api = {
     }),
   recentDumps: () => request<{ dumps: RecentDump[] }>("/api/dumps"),
   recentActivity: () => request<{ activity: ActivityItem[] }>("/api/activity"),
+  sponsors: () =>
+    request<{ seats: SponsorSeat[]; price: number }>("/api/sponsors"),
+  createSponsor: (slot: string, url: string) =>
+    request<CheckoutResponse>("/api/sponsors", {
+      method: "POST",
+      body: JSON.stringify({ slot, url }),
+    }),
   myBids: () => request<{ bids: UserBid[] }>("/api/me/bids"),
   payment: (id: string) => request<PaymentStatus>(`/api/payments/${id}`),
   mockConfirm: (id: string) =>

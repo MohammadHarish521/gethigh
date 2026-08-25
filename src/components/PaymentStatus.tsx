@@ -77,6 +77,27 @@ export function PaymentStatusView({
   }
 
   const isDump = status.bid?.kind === "dump";
+  const isSponsor = status.bid?.kind === "sponsor";
+
+  if (isSponsor) {
+    return (
+      <div className="card px-6 py-10 text-center">
+        <p className="chip-live mx-auto">Sponsor seat taken</p>
+        <h1 className="font-display mt-4 text-[44px] leading-[0.98] font-extrabold tracking-[-0.06em]">
+          You’re on the wall.
+        </h1>
+        <p className="mt-2 text-sm font-medium tracking-[-0.3px] text-muted">
+          Paid {formatMoney(status.payment.amount)} one time. Your logo stays
+          in that seat — no decay, no dump.
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <Link to="/" className="btn-primary">
+            See the board
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (isDump) {
     const name = status.product?.name ?? "them";

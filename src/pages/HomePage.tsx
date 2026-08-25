@@ -10,9 +10,11 @@ import {
 import { DumpSpotModal } from "../components/DumpSpotModal";
 import { Leaderboard } from "../components/Leaderboard";
 import { OutbidBox } from "../components/OutbidBox";
+import { SponsorRail } from "../components/SponsorRail";
+import { SponsorSeatModal } from "../components/SponsorSeatModal";
 import { useProducts } from "../hooks/useProducts";
-import { MIN_BID, minimumNextBid } from "../lib/constants";
-import type { ActivityItem, Product, RecentDump } from "../types";
+import { MIN_BID, SPONSOR_PRICE, minimumNextBid } from "../lib/constants";
+import type { ActivityItem, Product, RecentDump, SponsorSeat } from "../types";
 import { listingsMatch, parseListingInput } from "../utils/format";
 import { makeLogo } from "../utils/logo";
 
@@ -27,6 +29,11 @@ export function HomePage() {
   const [dumpError, setDumpError] = useState<string | null>(null);
   const [dumps, setDumps] = useState<RecentDump[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [sponsorSeats, setSponsorSeats] = useState<SponsorSeat[]>(emptySponsorSeats);
+  const [sponsorPrice, setSponsorPrice] = useState(SPONSOR_PRICE);
+  const [sponsorSlot, setSponsorSlot] = useState<string | null>(null);
+  const [sponsorError, setSponsorError] = useState<string | null>(null);
+  const [sponsorBusy, setSponsorBusy] = useState(false);
 
   const topBid = products[0]?.currentBid ?? 0;
   const claimPrice = products[0]?.minNextBid ?? minimumNextBid(topBid);
@@ -44,11 +51,13 @@ export function HomePage() {
     let cancelled = false;
 
     function loadFeed() {
-      Promise.all([api.recentDumps(), api.recentActivity()])
-        .then(([dumpData, activityData]) => {
+      Promise.all([api.recentDumps(), api.recentActivity(), api.sponsors()])
+        .then(([dumpData, activityData, sponsorData]) => {
           if (cancelled) return;
           setDumps(dumpData.dumps);
           setActivity(activityData.activity);
+          setSponsorSeats(sponsorData.seats);
+          setSponsorPrice(sponsorData.price);
         })
         .catch(() => {
           if (cancelled) return;
@@ -86,44 +95,106 @@ export function HomePage() {
     }
   }
 
+  async function submitSponsor(url: string) {
+    if (!sponsorSlot) return;
+    setSponsorError(null);
+    setSponsorBusy(true);
+    try {
+      const checkout = await api.createSponsor(sponsorSlot, url);
+      window.location.href = checkout.checkoutUrl;
+    } catch (err: unknown) {
+      setSponsorError(
+        err instanceof Error ? err.message : "Could not take that seat.",
+      );
+      setSponsorBusy(false);
+    }
+  }
+
   return (
     <div className="animate-fade-up">
-      <OutbidBox
-        claimPrice={claimPrice}
-        amount={amount}
-        onAmount={(value) => {
-          setAmount(value);
-          setError(null);
-        }}
-        url={url}
-        onUrl={(value) => {
-          setUrl(value);
-          setError(null);
-        }}
-        existingBid={existing?.currentBid ?? null}
-        error={error}
-        onSubmit={async () => {
-          try {
-            const listing = parseListingInput(url);
-            const match = findExisting(products, url);
-            const checkout = match
-              ? await api.createBid(match.id, amount)
-              : await api.submitProduct({
-                  name: listing.name,
-                  description: `Listed from ${listing.hostname}.`,
-                  url: listing.url,
-                  logoUrl: makeLogo(listing.name, "#508200"),
-                  creatorName: listing.name,
-                  startingBid: amount,
-                });
-            window.location.href = checkout.checkoutUrl;
-          } catch (err: unknown) {
-            setError(
-              err instanceof Error ? err.message : "Could not place that bid.",
-            );
-          }
-        }}
-      />
+      <div className="lg:grid lg:grid-cols-[240px_minmax(0,1fr)_240px] lg:items-start lg:gap-4 xl:grid-cols-[260px_minmax(0,1fr)_260px] xl:gap-5">
+        <div className="hidden lg:block lg:sticky lg:top-24">
+          <SponsorRail
+            side="left"
+            seats={sponsorSeats}
+            price={sponsorPrice}
+            onClaim={(slot) => {
+              setSponsorError(null);
+              setSponsorSlot(slot);
+            }}
+          />
+        </div>
+        <div className="min-w-0">
+          <OutbidBox
+            claimPrice={claimPrice}
+            amount={amount}
+            onAmount={(value) => {
+              setAmount(value);
+              setError(null);
+            }}
+            url={url}
+            onUrl={(value) => {
+              setUrl(value);
+              setError(null);
+            }}
+            existingBid={existing?.currentBid ?? null}
+            error={error}
+            onSubmit={async () => {
+              try {
+                const listing = parseListingInput(url);
+                const match = findExisting(products, url);
+                const checkout = match
+                  ? await api.createBid(match.id, amount)
+                  : await api.submitProduct({
+                      name: listing.name,
+                      description: `Listed from ${listing.hostname}.`,
+                      url: listing.url,
+                      logoUrl: makeLogo(listing.name, "#508200"),
+                      creatorName: listing.name,
+                      startingBid: amount,
+                    });
+                window.location.href = checkout.checkoutUrl;
+              } catch (err: unknown) {
+                setError(
+                  err instanceof Error ? err.message : "Could not place that bid.",
+                );
+              }
+            }}
+          />
+        </div>
+        <div className="hidden lg:block lg:sticky lg:top-24">
+          <SponsorRail
+            side="right"
+            seats={sponsorSeats}
+            price={sponsorPrice}
+            onClaim={(slot) => {
+              setSponsorError(null);
+              setSponsorSlot(slot);
+            }}
+          />
+        </div>
+      </div>
+
+      <div className="mt-6 grid grid-cols-2 gap-3 lg:hidden">
+        <SponsorRail
+          side="left"
+          seats={sponsorSeats}
+          price={sponsorPrice}
+          onClaim={(slot) => {
+            setSponsorError(null);
+            setSponsorSlot(slot);
+          }}
+        />
+        <SponsorRail
+          side="right"
+          seats={sponsorSeats}
+          price={sponsorPrice}
+          onClaim={(slot) => {
+            setSponsorError(null);
+            setSponsorSlot(slot);
+          }}
+        />
+      </div>
 
       <div className="mt-8 lg:mt-10">
         <div className="hidden lg:grid lg:grid-cols-[240px_minmax(0,1fr)_240px] lg:items-start lg:gap-4 xl:grid-cols-[260px_minmax(0,1fr)_260px] xl:gap-5">
@@ -189,6 +260,19 @@ export function HomePage() {
         }}
         onSubmit={submitDump}
       />
+      <SponsorSeatModal
+        slot={sponsorSlot}
+        price={sponsorPrice}
+        open={sponsorSlot != null}
+        busy={sponsorBusy}
+        error={sponsorError}
+        onClose={() => {
+          if (sponsorBusy) return;
+          setSponsorSlot(null);
+          setSponsorError(null);
+        }}
+        onSubmit={submitSponsor}
+      />
     </div>
   );
 }
@@ -201,6 +285,17 @@ function findExisting(products: Product[], raw: string) {
   } catch {
     return null;
   }
+}
+
+function emptySponsorSeats(): SponsorSeat[] {
+  return (["left", "right"] as const).flatMap((side) =>
+    [1, 2, 3, 4, 5].map((index) => ({
+      slot: `${side}-${index}`,
+      side,
+      index,
+      occupant: null,
+    })),
+  );
 }
 
 function Board({

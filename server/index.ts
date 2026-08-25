@@ -34,6 +34,11 @@ import {
   listRecentDumps,
   markWebhookProcessed,
 } from "./bidding.js";
+import {
+  createSponsorCheckout,
+  listSponsorSeats,
+  sponsorDestination,
+} from "./sponsors.js";
 import { assertProductionPayments, getDodoEnvironment, isDodoConfigured, unwrapDodoWebhook } from "./dodo.js";
 import { applyDecay, startDecayScheduler } from "./decay.js";
 import {
@@ -431,6 +436,34 @@ app.get("/api/activity", (_req, res) => {
   });
 });
 
+app.get("/api/sponsors", (_req, res) => {
+  res.json(listSponsorSeats());
+});
+
+app.post(
+  "/api/sponsors",
+  asyncHandler(async (req, res) => {
+    const user = ensureGuestUser(req, res);
+    const result = await createSponsorCheckout({
+      slot: String(req.body.slot || ""),
+      url: String(req.body.url || ""),
+      userId: user.id,
+      userEmail: user.email,
+      userName: user.name,
+    });
+    res.status(201).json(result);
+  }),
+);
+
+app.get("/api/sponsors/:slot/go", (req, res, next) => {
+  try {
+    const dest = sponsorDestination(String(req.params.slot || ""));
+    res.redirect(302, dest);
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get("/api/me/bids", (req, res, next) => {
   try {
   const user = requireUser(req);
@@ -522,7 +555,12 @@ app.get("/api/payments/:id", (req, res, next) => {
           id: bid.id,
           amount: bid.amount,
           status: bid.status,
-          kind: bid.kind === "dump" ? "dump" : "bid",
+          kind:
+            bid.kind === "dump"
+              ? "dump"
+              : bid.kind === "sponsor"
+                ? "sponsor"
+                : "bid",
           dumpRank: bid.dump_rank,
           dumpHeldSeconds: bid.dump_held_seconds,
         }
@@ -532,7 +570,9 @@ app.get("/api/payments/:id", (req, res, next) => {
       ? toProductDto(claimProduct, getProductRank(claimProduct.id))
       : null,
     becameNumberOne:
-      payment.status === "succeeded" && rankedProduct
+      payment.status === "succeeded" &&
+      rankedProduct &&
+      bid?.kind !== "sponsor"
         ? getProductRank(rankedProduct.id) === 1
         : false,
   });

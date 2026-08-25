@@ -115,6 +115,27 @@ db.exec(`
   CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_polar_order
     ON payments(polar_order_id)
     WHERE polar_order_id IS NOT NULL;
+
+  CREATE TABLE IF NOT EXISTS sponsor_seats (
+    slot TEXT PRIMARY KEY,
+    name TEXT,
+    url TEXT,
+    logo_url TEXT,
+    user_id TEXT,
+    payment_id TEXT,
+    pending_payment_id TEXT,
+    pending_at TEXT,
+    claimed_at TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS sponsor_claims (
+    bid_id TEXT PRIMARY KEY,
+    slot TEXT NOT NULL,
+    url TEXT NOT NULL,
+    name TEXT NOT NULL,
+    logo_url TEXT NOT NULL,
+    FOREIGN KEY (bid_id) REFERENCES bids(id) ON DELETE CASCADE
+  );
 `);
 
 db.exec(`
@@ -158,6 +179,24 @@ db.prepare(
   "UPDATE products SET decay_anchor = current_bid WHERE decay_anchor IS NULL",
 ).run();
 
+const seedSponsorSeats = db.prepare(
+  "INSERT OR IGNORE INTO sponsor_seats (slot) VALUES (?)",
+);
+for (const slot of [
+  "left-1",
+  "left-2",
+  "left-3",
+  "left-4",
+  "left-5",
+  "right-1",
+  "right-2",
+  "right-3",
+  "right-4",
+  "right-5",
+]) {
+  seedSponsorSeats.run(slot);
+}
+
 export type UserRow = {
   id: string;
   email: string;
@@ -183,7 +222,7 @@ export type ProductRow = {
   created_at: string;
 };
 
-export type BidKind = "bid" | "dump";
+export type BidKind = "bid" | "dump" | "sponsor";
 
 export type BidRow = {
   id: string;

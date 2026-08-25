@@ -85,7 +85,20 @@ export type CheckoutResponse = {
   checkoutUrl: string;
   mock: boolean;
   productId?: string;
-  kind?: "bid" | "dump";
+  kind?: "bid" | "dump" | "sponsor";
+};
+
+export type SponsorOccupant = {
+  name: string;
+  url: string;
+  logoUrl: string;
+};
+
+export type SponsorSeat = {
+  slot: string;
+  side: "left" | "right";
+  index: number;
+  occupant: SponsorOccupant | null;
 };
 
 export type PaymentStatus = {
@@ -101,7 +114,7 @@ export type PaymentStatus = {
     id: string;
     amount: number;
     status: string;
-    kind?: "bid" | "dump";
+    kind?: "bid" | "dump" | "sponsor";
     dumpRank?: number | null;
     dumpHeldSeconds?: number | null;
   } | null;
