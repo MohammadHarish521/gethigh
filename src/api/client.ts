@@ -40,6 +40,7 @@ export const api = {
       dumpPremium: number;
       decayPerDay: number;
       revenue: number;
+      clicks: number;
     }>("/api/config"),
   presence: () =>
     request<{ live: number; views: number }>("/api/presence", { method: "POST" }),

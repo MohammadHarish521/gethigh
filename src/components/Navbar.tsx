@@ -1,19 +1,22 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { api } from "../api/client";
-import { formatMoney } from "../utils/format";
+import { formatMoney, plural } from "../utils/format";
 
 export function Navbar() {
   const [revenue, setRevenue] = useState<number | null>(null);
+  const [clicks, setClicks] = useState<number | null>(null);
 
   useEffect(() => {
     api
       .config()
       .then((config) => {
         if (config.revenue > 0) setRevenue(config.revenue);
+        setClicks(config.clicks ?? 0);
       })
       .catch(() => {
         setRevenue(null);
+        setClicks(null);
       });
   }, []);
 
@@ -29,13 +32,27 @@ export function Navbar() {
               dump
             </span>
           </Link>
-          {revenue != null ? (
+          {revenue != null || clicks != null ? (
             <span
               className="hidden min-w-0 items-center gap-1 truncate whitespace-nowrap text-[14px] text-muted md:inline-flex"
               aria-live="polite"
             >
-              made{" "}
-              <b className="num font-bold text-green">{formatMoney(revenue)}</b>
+              {revenue != null ? (
+                <>
+                  made{" "}
+                  <b className="num font-bold text-green">{formatMoney(revenue)}</b>
+                </>
+              ) : null}
+              {revenue != null && clicks != null ? (
+                <span className="text-faint" aria-hidden="true">
+                  ·
+                </span>
+              ) : null}
+              {clicks != null ? (
+                <b className="num font-bold text-fg">
+                  {plural(clicks, "click")}
+                </b>
+              ) : null}
             </span>
           ) : null}
         </div>

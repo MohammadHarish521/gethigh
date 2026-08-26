@@ -159,6 +159,7 @@ addColumn("products", "decayed_at", "TEXT");
 addColumn("products", "decay_anchor", "INTEGER");
 addColumn("payments", "dodo_session_id", "TEXT");
 addColumn("payments", "dodo_payment_id", "TEXT");
+addColumn("sponsor_seats", "click_count", "INTEGER NOT NULL DEFAULT 0");
 
 db.exec(`
   CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_dodo_session

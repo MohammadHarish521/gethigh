@@ -1,5 +1,7 @@
-import type { SponsorSeat } from "../types";
-import { formatMoney } from "../utils/format";
+import { Pointer } from "lucide-react";
+import { useEffect, useState } from "react";
+import type { SponsorOccupant, SponsorSeat } from "../types";
+import { formatMoney, plural } from "../utils/format";
 import { ProductLogo } from "./ProductLogo";
 
 type SponsorRailProps = {
@@ -26,27 +28,7 @@ export function SponsorRail({ side, seats, price, onClaim }: SponsorRailProps) {
         {column.map((seat) => (
           <li key={seat.slot}>
             {seat.occupant ? (
-              <a
-                href={`/api/sponsors/${seat.slot}/go`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex w-full items-center gap-2.5 rounded-[16px] bg-white/80 px-2 py-2 ring-1 ring-white shadow-[0_8px_18px_rgb(183_181_203/0.16)] transition-[transform,box-shadow] duration-[180ms] ease-[cubic-bezier(0.4,0,0.2,1)] hover:-translate-y-px hover:shadow-[0_10px_22px_rgb(183_181_203/0.22)]"
-              >
-                <ProductLogo
-                  src={seat.occupant.logoUrl}
-                  name={seat.occupant.name}
-                  siteUrl={seat.occupant.url}
-                  size="xs"
-                />
-                <span className="min-w-0 flex-1 text-left">
-                  <span className="block truncate text-[13px] font-semibold tracking-[-0.03em] text-fg-strong">
-                    {seat.occupant.name}
-                  </span>
-                  <span className="block text-[11px] font-medium tracking-[-0.02em] text-faint">
-                    Seat {seat.index}
-                  </span>
-                </span>
-              </a>
+              <OccupiedSeat seat={seat} occupant={seat.occupant} />
             ) : (
               <button
                 type="button"
@@ -74,5 +56,48 @@ export function SponsorRail({ side, seats, price, onClaim }: SponsorRailProps) {
         ))}
       </ol>
     </section>
+  );
+}
+
+function OccupiedSeat({
+  seat,
+  occupant,
+}: {
+  seat: SponsorSeat;
+  occupant: SponsorOccupant;
+}) {
+  const [clicks, setClicks] = useState(occupant.clickCount);
+
+  useEffect(() => {
+    setClicks(occupant.clickCount);
+  }, [occupant.clickCount]);
+
+  return (
+    <a
+      href={`/api/sponsors/${seat.slot}/go`}
+      target="_blank"
+      rel="noreferrer"
+      onClick={() => setClicks((count) => count + 1)}
+      className="flex w-full items-center gap-2.5 rounded-[16px] bg-white/80 px-2 py-2 ring-1 ring-white shadow-[0_8px_18px_rgb(183_181_203/0.16)] transition-[transform,box-shadow] duration-[180ms] ease-[cubic-bezier(0.4,0,0.2,1)] hover:-translate-y-px hover:shadow-[0_10px_22px_rgb(183_181_203/0.22)]"
+    >
+      <ProductLogo
+        src={occupant.logoUrl}
+        name={occupant.name}
+        siteUrl={occupant.url}
+        size="xs"
+      />
+      <span className="min-w-0 flex-1 text-left">
+        <span className="block truncate text-[13px] font-semibold tracking-[-0.03em] text-fg-strong">
+          {occupant.name}
+        </span>
+        <span
+          title={plural(clicks, "click")}
+          className="chip-clicks-blue mt-0.5 inline-flex py-0 pr-1.5 pl-1 text-[11px]"
+        >
+          <Pointer size={11} strokeWidth={2.4} aria-hidden="true" />
+          <span className="num">{clicks.toLocaleString("en-US")}</span>
+        </span>
+      </span>
+    </a>
   );
 }

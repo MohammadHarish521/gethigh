@@ -186,6 +186,7 @@ app.get("/api/config", (_req, res) => {
     dumpPremium: DUMP_PREMIUM,
     decayPerDay: DECAY_PER_DAY,
     revenue,
+    clicks: boardClicks(),
   });
 });
 
@@ -695,6 +696,17 @@ function boardRevenue() {
        WHERE status = 'succeeded'
          AND provider = 'dodo'
          AND dodo_payment_id IS NOT NULL`,
+    )
+    .get() as { total: number };
+  return Number(row.total) || 0;
+}
+
+function boardClicks() {
+  const row = db
+    .prepare(
+      `SELECT COALESCE(SUM(click_count), 0) AS total
+       FROM products
+       WHERE bid_count > 0`,
     )
     .get() as { total: number };
   return Number(row.total) || 0;

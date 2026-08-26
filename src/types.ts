@@ -92,6 +92,7 @@ export type SponsorOccupant = {
   name: string;
   url: string;
   logoUrl: string;
+  clickCount: number;
 };
 
 export type SponsorSeat = {

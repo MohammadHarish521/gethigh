@@ -37,6 +37,7 @@ type SeatRow = {
   claimed_at: string | null;
   pending_payment_id: string | null;
   pending_at: string | null;
+  click_count: number | null;
 };
 
 function parseSlot(raw: string): SponsorSlot {
@@ -108,7 +109,7 @@ export function listSponsorSeats() {
   ensureSponsorProduct();
   const rows = db
     .prepare(
-      `SELECT slot, name, url, logo_url, claimed_at, pending_payment_id, pending_at
+      `SELECT slot, name, url, logo_url, claimed_at, pending_payment_id, pending_at, click_count
        FROM sponsor_seats
        ORDER BY slot`,
     )
@@ -125,11 +126,12 @@ export function listSponsorSeats() {
         slot,
         side: sideOf(slot),
         index: indexOf(slot),
-        occupant: taken
+            occupant: taken
           ? {
               name: row!.name || hostnameFromUrl(row!.url || ""),
               url: row!.url as string,
               logoUrl: row!.logo_url || letterLogo(row!.name || "S"),
+              clickCount: Number(row!.click_count) || 0,
             }
           : null,
       };
@@ -223,5 +225,8 @@ export function sponsorDestination(slotRaw: string) {
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new HttpError(400, "Invalid sponsor URL.");
   }
+  db.prepare(
+    "UPDATE sponsor_seats SET click_count = COALESCE(click_count, 0) + 1 WHERE slot = ?",
+  ).run(slot);
   return parsed.toString();
 }
