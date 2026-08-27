@@ -9,6 +9,7 @@ import type {
   SponsorSeat,
   BikeAuction,
 } from "../types";
+import { ensureDataFast } from "../lib/datafast";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -29,6 +30,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return data;
+}
+
+async function checkoutPost<T>(path: string, body: unknown): Promise<T> {
+  await ensureDataFast();
+  return request<T>(path, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 export const api = {
@@ -70,36 +79,20 @@ export const api = {
     logoUrl: string;
     creatorName: string;
     startingBid: number;
-  }) =>
-    request<CheckoutResponse>("/api/products", {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
+  }) => checkoutPost<CheckoutResponse>("/api/products", input),
   createBid: (productId: string, amount: number) =>
-    request<CheckoutResponse>("/api/bids", {
-      method: "POST",
-      body: JSON.stringify({ productId, amount }),
-    }),
+    checkoutPost<CheckoutResponse>("/api/bids", { productId, amount }),
   createDump: (productId: string, url: string) =>
-    request<CheckoutResponse>("/api/dumps", {
-      method: "POST",
-      body: JSON.stringify({ productId, url }),
-    }),
+    checkoutPost<CheckoutResponse>("/api/dumps", { productId, url }),
   recentDumps: () => request<{ dumps: RecentDump[] }>("/api/dumps"),
   recentActivity: () => request<{ activity: ActivityItem[] }>("/api/activity"),
   sponsors: () =>
     request<{ seats: SponsorSeat[]; price: number }>("/api/sponsors"),
   createSponsor: (slot: string, url: string) =>
-    request<CheckoutResponse>("/api/sponsors", {
-      method: "POST",
-      body: JSON.stringify({ slot, url }),
-    }),
+    checkoutPost<CheckoutResponse>("/api/sponsors", { slot, url }),
   bike: () => request<BikeAuction>("/api/bike"),
-  createBikeSpot: (slot: string, url: string) =>
-    request<CheckoutResponse>("/api/bike", {
-      method: "POST",
-      body: JSON.stringify({ slot, url }),
-    }),
+  createBikeSpot: (slot: string, url: string, size: string) =>
+    checkoutPost<CheckoutResponse>("/api/bike", { slot, url, size }),
   myBids: () => request<{ bids: UserBid[] }>("/api/me/bids"),
   payment: (id: string) => request<PaymentStatus>(`/api/payments/${id}`),
   mockConfirm: (id: string) =>

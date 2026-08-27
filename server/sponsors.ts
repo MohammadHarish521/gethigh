@@ -145,6 +145,7 @@ export async function createSponsorCheckout(input: {
   userId: string;
   userEmail: string;
   userName: string;
+  datafastVisitorId?: string | null;
 }) {
   ensureSponsorProduct();
   const slot = parseSlot(input.slot);
@@ -208,6 +209,7 @@ export async function createSponsorCheckout(input: {
     userName: input.userName,
     provider,
     kind: "sponsor",
+    datafastVisitorId: input.datafastVisitorId,
   });
 }
 

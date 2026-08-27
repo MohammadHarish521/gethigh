@@ -57,10 +57,6 @@ export function Navbar() {
           ) : null}
         </div>
         <nav className="flex shrink-0 items-center" aria-label="Main">
-          <NavLink to="/" className={navClass} end>
-            <span className="sm:hidden">Board</span>
-            <span className="hidden sm:inline">Leaderboard</span>
-          </NavLink>
           <NavLink to="/bike" className={navClass}>
             Bike
           </NavLink>

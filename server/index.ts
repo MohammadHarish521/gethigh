@@ -61,6 +61,7 @@ import {
 import { isPlaceholderDescription } from "./listingMeta.js";
 import { fetchSiteIcon } from "./favicon.js";
 import { recordPresence } from "./presence.js";
+import { datafastRequestContext, datafastVisitorIdFromRequest } from "./datafast.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3001;
@@ -77,6 +78,7 @@ app.use(
   }),
 );
 app.use(cookieParser());
+app.use(datafastRequestContext);
 
 app.post(
   "/api/webhooks/dodo",
@@ -371,6 +373,7 @@ app.post(
       userId: user.id,
       userEmail: user.email,
       userName: user.name,
+      datafastVisitorId: datafastVisitorIdFromRequest(req),
     });
     res.status(201).json(result);
   }),
@@ -386,6 +389,7 @@ app.post(
       userId: user.id,
       userEmail: user.email,
       userName: user.name,
+      datafastVisitorId: datafastVisitorIdFromRequest(req),
     });
     res.status(201).json(result);
   }),
@@ -401,6 +405,7 @@ app.post(
       userEmail: user.email,
       userName: user.name,
       claimUrl: String(req.body.url || ""),
+      datafastVisitorId: datafastVisitorIdFromRequest(req),
     });
     res.status(201).json(result);
   }),
@@ -457,6 +462,7 @@ app.post(
       userId: user.id,
       userEmail: user.email,
       userName: user.name,
+      datafastVisitorId: datafastVisitorIdFromRequest(req),
     });
     res.status(201).json(result);
   }),
@@ -482,9 +488,11 @@ app.post(
     const result = await createBikeCheckout({
       slot: String(req.body.slot || ""),
       url: String(req.body.url || ""),
+      size: req.body.size,
       userId: user.id,
       userEmail: user.email,
       userName: user.name,
+      datafastVisitorId: datafastVisitorIdFromRequest(req),
     });
     res.status(201).json(result);
   }),

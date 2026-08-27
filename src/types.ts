@@ -134,11 +134,20 @@ export type BikeOccupant = {
   logoUrl: string;
   clickCount: number;
   heldUntil: string | null;
+  vinylSize: BikeSize;
+};
+
+export type BikeSizeOption = {
+  size: BikeSize;
+  floor: number;
+  minNextBid: number;
+  allowed: boolean;
 };
 
 export type BikeSpot = {
   slot: string;
   face: BikeFace;
+  locationSize: BikeSize;
   size: BikeSize;
   floor: number;
   label: string;
@@ -149,6 +158,7 @@ export type BikeSpot = {
   points: Array<[number, number]>;
   currentBid: number;
   minNextBid: number;
+  sizeOptions: BikeSizeOption[];
   locked: boolean;
   occupant: BikeOccupant | null;
 };
@@ -160,5 +170,7 @@ export type BikeAuction = {
   goal: number;
   taken: number;
   total: number;
+  outbidMult: number;
+  sizes: Record<BikeSize, number>;
   spots: BikeSpot[];
 };

@@ -181,13 +181,25 @@ function SpotLabel({
             href={`/api/bike/${spot.slot}/go`}
             target="_blank"
             rel="noreferrer"
-            className={`bike-sticker transition-opacity duration-150 ${hot ? "opacity-40" : ""}`}
+            className={`bike-sticker transition-opacity duration-150 ${hot ? "opacity-40" : ""} ${
+              spot.size === "large"
+                ? "scale-125"
+                : spot.size === "small"
+                  ? "scale-90"
+                  : ""
+            }`}
           >
             <ProductLogo
               src={spot.occupant.logoUrl}
               name={spot.occupant.name}
               siteUrl={spot.occupant.url}
-              size={spot.size === "large" ? "sm" : "xs"}
+              size={
+                spot.size === "large"
+                  ? "sm"
+                  : spot.size === "medium"
+                    ? "xs"
+                    : "xs"
+              }
             />
           </a>
           {hot && !spot.locked ? (
@@ -210,9 +222,9 @@ function SpotLabel({
       ) : (
         <>
           <span className="block text-[10px] font-bold tracking-[0.04em] text-white uppercase [text-shadow:0_1px_2px_rgb(0_0_0_/_0.55)]">
-            {spot.size === "large"
+            {spot.locationSize === "large"
               ? "Large"
-              : spot.size === "medium"
+              : spot.locationSize === "medium"
                 ? "Mid"
                 : "Spot"}
           </span>

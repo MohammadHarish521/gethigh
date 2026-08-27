@@ -242,38 +242,65 @@ check(
 );
 
 // --- NS400Z tank auction ------------------------------------------------
-const { BIKE_SPOTS, bikeNextPrice, createBikeCheckout, listBikeSpots } =
-  await import("./bike.js");
+const {
+  BIKE_SPOTS,
+  BIKE_LOCATION_FLOOR,
+  bikeSizeFloor,
+  bikeNextPrice,
+  createBikeCheckout,
+  listBikeSpots,
+} = await import("./bike.js");
 
 const emptyTank = listBikeSpots();
 const hero = emptyTank.spots.find((spot) => spot.slot === "left-hero");
+const mid = emptyTank.spots.find((spot) => spot.slot === "left-mid");
+const knee = emptyTank.spots.find((spot) => spot.slot === "left-knee");
 check(
-  "empty left hero sells at its $250 floor",
-  Boolean(hero && hero.minNextBid === 250 && hero.occupant === null),
+  "small spots start at $50, mid at $100, large at $150",
+  knee?.floor === 50 && mid?.floor === 100 && hero?.floor === 150,
+  `knee $${knee?.floor} · mid $${mid?.floor} · hero $${hero?.floor}`,
+);
+check(
+  "empty large spots sell at the large location floor",
+  Boolean(hero && hero.minNextBid === 150 && hero.occupant === null),
   `left-hero minNext = $${hero?.minNextBid}`,
+);
+check(
+  "each location has its own 1.2× vinyl ladder",
+  bikeSizeFloor("small", "large") === 72 &&
+    bikeSizeFloor("medium", "large") === 144 &&
+    bikeSizeFloor("large", "large") === 216,
+  `S $${bikeSizeFloor("small", "small")}-${bikeSizeFloor("small", "large")} · M $${bikeSizeFloor("medium", "small")}-${bikeSizeFloor("medium", "large")} · L $${bikeSizeFloor("large", "small")}-${bikeSizeFloor("large", "large")}`,
 );
 
 const tankClaim = await createBikeCheckout({
   ...user,
   slot: "left-hero",
   url: "https://127.0.0.1/tank-brand",
+  size: "small",
 });
 confirmPayment(tankClaim.paymentId);
 const afterClaim = listBikeSpots();
 const claimedHero = afterClaim.spots.find((spot) => spot.slot === "left-hero");
 check(
-  "a paid tank claim occupies the spot at the floor",
-  claimedHero?.occupant?.name != null && claimedHero.currentBid === 250,
-  `hero is ${claimedHero?.occupant?.name} at $${claimedHero?.currentBid}`,
+  "a paid tank claim occupies the spot at that location’s start",
+  claimedHero?.occupant?.vinylSize === "small" && claimedHero.currentBid === 150,
+  `hero is ${claimedHero?.occupant?.name} at $${claimedHero?.currentBid} ${claimedHero?.size}`,
 );
 
-const nextHero = bikeNextPrice(250, 250);
+const nextHero = bikeNextPrice(150, "small", "large");
+check(
+  "same-size dump is 1.2× the bid on the tank",
+  nextHero === 180,
+  `1.2× $150 = $${nextHero}`,
+);
 const tankOutbid = await createBikeCheckout({
   userId: "u2",
   userEmail: "rival@example.com",
   userName: "Rival",
   slot: "left-hero",
   url: "https://127.0.0.1/tank-rival",
+  size: "small",
 });
 confirmPayment(tankOutbid.paymentId);
 const afterOutbid = listBikeSpots();
@@ -284,10 +311,43 @@ check(
     Boolean(outbidHero?.occupant?.url?.includes("tank-rival")),
   `hero now $${outbidHero?.currentBid} (expected $${nextHero})`,
 );
+
+const tankUpgrade = await createBikeCheckout({
+  ...user,
+  slot: "left-hero",
+  url: "https://127.0.0.1/tank-large",
+  size: "large",
+});
+confirmPayment(tankUpgrade.paymentId);
+const afterUpgrade = listBikeSpots();
+const largeHero = afterUpgrade.spots.find((spot) => spot.slot === "left-hero");
+const largeLadder = bikeSizeFloor("large", "large");
+check(
+  "upgrading vinyl size charges this location’s large rung when it beats 1.2×",
+  largeHero?.size === "large" && largeHero.currentBid === largeLadder,
+  `hero ${largeHero?.size} at $${largeHero?.currentBid} (expected $${largeLadder})`,
+);
+
+let shrinkBlocked = false;
+try {
+  await createBikeCheckout({
+    ...user,
+    slot: "left-hero",
+    url: "https://127.0.0.1/tank-shrink",
+    size: "small",
+  });
+} catch {
+  shrinkBlocked = true;
+}
+check(
+  "vinyl on the tank cannot shrink",
+  shrinkBlocked,
+  shrinkBlocked ? "small rejected over large" : "shrink was allowed",
+);
 check(
   "tank spots are not a dump — the previous logo is gone",
-  afterOutbid.taken === 1,
-  `${afterOutbid.taken} occupied after the outbid`,
+  afterUpgrade.taken === 1,
+  `${afterUpgrade.taken} occupied after the upgrade`,
 );
 
 const boardAfterBike = (
@@ -300,9 +360,14 @@ check(
   boardAfterBike === priceOf(entrant.productId!),
   `board top still $${boardAfterBike}`,
 );
+const expectedGoal = Object.values(
+  Object.fromEntries(
+    BIKE_SPOTS.map((spot) => [spot.slot, BIKE_LOCATION_FLOOR[spot.size]]),
+  ),
+).reduce((sum, floor) => sum + floor, 0);
 check(
-  "twelve tank spots and a goal equal to the floors",
-  BIKE_SPOTS.length === 12 && emptyTank.goal === 1840,
+  "twelve tank spots and a goal equal to the location floors",
+  BIKE_SPOTS.length === 12 && emptyTank.goal === expectedGoal,
   `${BIKE_SPOTS.length} spots, goal $${emptyTank.goal}`,
 );
 

@@ -1,4 +1,5 @@
 import DodoPayments from "dodopayments";
+import { currentDatafastVisitorId } from "./datafast.js";
 
 function env(name: string) {
   return process.env[name]?.trim() || "";
@@ -60,6 +61,7 @@ export async function createDodoCheckout(input: {
   userEmail: string;
   userName: string;
   kind?: "bid" | "dump" | "sponsor" | "bike";
+  datafastVisitorId?: string | null;
 }) {
   const client = getDodoClient();
   const productId = env("DODO_PRODUCT_ID");
@@ -70,6 +72,7 @@ export async function createDodoCheckout(input: {
   const kind = input.kind ?? "bid";
   const amountCents = input.amountDollars * 100;
   const guest = input.userEmail.endsWith("@guest.gethigh");
+  const visitorId = input.datafastVisitorId ?? currentDatafastVisitorId();
 
   const session = await client.checkoutSessions.create({
     product_cart: [
@@ -102,6 +105,7 @@ export async function createDodoCheckout(input: {
       productName: input.productName.slice(0, 500),
       amount: input.amountDollars,
       kind,
+      ...(visitorId ? { datafast_visitor_id: visitorId } : {}),
     },
   });
 

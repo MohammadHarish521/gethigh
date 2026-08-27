@@ -8,10 +8,22 @@ import {
 } from "./bidding.js";
 import { isDodoConfigured } from "./dodo.js";
 import { fetchListingMeta } from "./listingMeta.js";
-import { hostnameFromUrl, minimumNextBid } from "./ranking.js";
+import { hostnameFromUrl } from "./ranking.js";
 
 export const BIKE_PRODUCT_ID = "bike-ns400z";
 export const BIKE_TERM_DAYS = 30;
+export const BIKE_OUTBID_MULT = 1.2;
+/** Starting price for an empty spot, by location class. */
+export const BIKE_LOCATION_FLOOR: Record<BikeSize, number> = {
+  small: 50,
+  medium: 100,
+  large: 150,
+};
+const SIZE_RANK: Record<BikeSize, number> = {
+  small: 0,
+  medium: 1,
+  large: 2,
+};
 const PENDING_MS = 20 * 60 * 1000;
 
 export type BikeFace = "left" | "right" | "top";
@@ -72,7 +84,7 @@ const LEFT_SPOTS: SpotDef[] = [
     slot: "left-shroud",
     face: "left",
     size: "small",
-    floor: 80,
+    floor: BIKE_LOCATION_FLOOR.small,
     label: "Left shroud",
     points: ring(13.5, 64, 9.5, 11, 10),
   }),
@@ -80,7 +92,7 @@ const LEFT_SPOTS: SpotDef[] = [
     slot: "left-upper",
     face: "left",
     size: "medium",
-    floor: 150,
+    floor: BIKE_LOCATION_FLOOR.medium,
     label: "Left upper",
     points: ring(54, 19, 16, 6.2, 12),
   }),
@@ -88,7 +100,7 @@ const LEFT_SPOTS: SpotDef[] = [
     slot: "left-mid",
     face: "left",
     size: "medium",
-    floor: 150,
+    floor: BIKE_LOCATION_FLOOR.medium,
     label: "Left mid",
     points: ring(62, 34, 15, 6.8, 12),
   }),
@@ -96,7 +108,7 @@ const LEFT_SPOTS: SpotDef[] = [
     slot: "left-hero",
     face: "left",
     size: "large",
-    floor: 250,
+    floor: BIKE_LOCATION_FLOOR.large,
     label: "Left hero",
     points: [
       [20, 24],
@@ -113,7 +125,7 @@ const LEFT_SPOTS: SpotDef[] = [
     slot: "left-knee",
     face: "left",
     size: "small",
-    floor: 80,
+    floor: BIKE_LOCATION_FLOOR.small,
     label: "Left knee",
     points: [
       [64, 66],
@@ -142,7 +154,7 @@ const TOP_SPOTS: SpotDef[] = [
     slot: "top-hero",
     face: "top",
     size: "large",
-    floor: 300,
+    floor: BIKE_LOCATION_FLOOR.large,
     label: "Top, toward the bars",
     points: [
       [34, 9],
@@ -159,7 +171,7 @@ const TOP_SPOTS: SpotDef[] = [
     slot: "top-aft",
     face: "top",
     size: "medium",
-    floor: 120,
+    floor: BIKE_LOCATION_FLOOR.medium,
     label: "Top, toward the seat",
     points: ring(50, 74, 20, 20.5, 14),
   }),
@@ -180,6 +192,7 @@ type SpotRow = {
   pending_payment_id: string | null;
   pending_at: string | null;
   click_count: number | null;
+  vinyl_size: string | null;
 };
 
 function parseSlot(raw: string) {
@@ -194,13 +207,67 @@ function pendingOpen(row: SpotRow | undefined, now = Date.now()) {
   return !Number.isFinite(held) || now - held > PENDING_MS;
 }
 
-export function bikeNextPrice(floor: number, currentBid: number) {
-  if (!Number.isFinite(currentBid) || currentBid < floor) return floor;
-  return Math.max(floor, minimumNextBid(currentBid));
+export function parseBikeSize(raw: unknown, fallback: BikeSize = "small"): BikeSize {
+  if (raw === "small" || raw === "medium" || raw === "large") return raw;
+  return fallback;
+}
+
+/** Price for a vinyl size on a given location. Each step up the ladder is 1.2×. */
+export function bikeSizeFloor(locationSize: BikeSize, vinylSize: BikeSize) {
+  let price = BIKE_LOCATION_FLOOR[locationSize];
+  const steps = SIZE_RANK[vinylSize];
+  for (let i = 0; i < steps; i++) {
+    price = Math.ceil(price * BIKE_OUTBID_MULT);
+  }
+  return price;
+}
+
+export function bikeOutbid(currentBid: number) {
+  if (!Number.isFinite(currentBid) || currentBid < 1) return 0;
+  const price = Math.floor(currentBid);
+  return Math.max(price + 1, Math.ceil(price * BIKE_OUTBID_MULT));
+}
+
+export function bikePrice(input: {
+  locationSize: BikeSize;
+  taken: boolean;
+  currentBid: number;
+  currentSize: BikeSize;
+  nextSize: BikeSize;
+}) {
+  if (
+    input.taken &&
+    SIZE_RANK[input.nextSize] < SIZE_RANK[input.currentSize]
+  ) {
+    return null;
+  }
+  const floor = bikeSizeFloor(input.locationSize, input.nextSize);
+  if (!input.taken) return floor;
+  return Math.max(floor, bikeOutbid(input.currentBid));
+}
+
+/** Same-size dump price, used by tank hover and board Dump buttons. */
+export function bikeNextPrice(
+  currentBid: number,
+  currentSize: BikeSize,
+  locationSize: BikeSize,
+) {
+  return (
+    bikePrice({
+      locationSize,
+      taken: currentBid > 0,
+      currentBid,
+      currentSize,
+      nextSize: currentSize,
+    }) ?? bikeSizeFloor(locationSize, currentSize)
+  );
 }
 
 export function bikeGoal() {
-  return BIKE_SPOTS.reduce((sum, spot) => sum + spot.floor, 0);
+  return BIKE_SPOTS.reduce(
+    (sum, spot) => sum + BIKE_LOCATION_FLOOR[spot.size],
+    0,
+  );
 }
 
 function ensureBikeProduct() {
@@ -249,7 +316,7 @@ export function listBikeSpots() {
   const rows = db
     .prepare(
       `SELECT slot, name, url, logo_url, claimed_at, held_until, current_bid,
-              pending_payment_id, pending_at, click_count
+              pending_payment_id, pending_at, click_count, vinyl_size
        FROM bike_spots`,
     )
     .all() as SpotRow[];
@@ -260,11 +327,33 @@ export function listBikeSpots() {
     const currentBid = Number(row?.current_bid) || 0;
     const taken = Boolean(row?.claimed_at && row.url);
     const locked = !pendingOpen(row);
+    const vinylSize = taken
+      ? parseBikeSize(row?.vinyl_size, def.size)
+      : "small";
+    const sizeOptions = (["small", "medium", "large"] as BikeSize[]).map(
+      (size) => {
+        const minNextBid = bikePrice({
+          locationSize: def.size,
+          taken,
+          currentBid: taken ? currentBid : 0,
+          currentSize: vinylSize,
+          nextSize: size,
+        });
+        const floor = bikeSizeFloor(def.size, size);
+        return {
+          size,
+          floor,
+          minNextBid: minNextBid ?? floor,
+          allowed: minNextBid != null,
+        };
+      },
+    );
     return {
       slot: def.slot,
       face: def.face,
-      size: def.size,
-      floor: def.floor,
+      locationSize: def.size,
+      size: vinylSize,
+      floor: BIKE_LOCATION_FLOOR[def.size],
       label: def.label,
       x: def.x,
       y: def.y,
@@ -272,7 +361,12 @@ export function listBikeSpots() {
       h: def.h,
       points: def.points,
       currentBid: taken ? currentBid : 0,
-      minNextBid: bikeNextPrice(def.floor, taken ? currentBid : 0),
+      minNextBid: bikeNextPrice(
+        taken ? currentBid : 0,
+        vinylSize,
+        def.size,
+      ),
+      sizeOptions,
       locked,
       occupant: taken
         ? {
@@ -281,6 +375,7 @@ export function listBikeSpots() {
             logoUrl: row!.logo_url || letterLogo(row!.name || "N"),
             clickCount: Number(row!.click_count) || 0,
             heldUntil: row!.held_until,
+            vinylSize,
           }
         : null,
     };
@@ -299,6 +394,8 @@ export function listBikeSpots() {
     goal: bikeGoal(),
     taken,
     total: BIKE_SPOTS.length,
+    outbidMult: BIKE_OUTBID_MULT,
+    sizes: BIKE_LOCATION_FLOOR,
     spots,
   };
 }
@@ -309,6 +406,8 @@ export async function createBikeCheckout(input: {
   userId: string;
   userEmail: string;
   userName: string;
+  size?: unknown;
+  datafastVisitorId?: string | null;
 }) {
   ensureBikeProduct();
   const def = parseSlot(input.slot);
@@ -326,13 +425,14 @@ export async function createBikeCheckout(input: {
   const paymentId = crypto.randomUUID();
   const createdAt = nowIso();
   const provider = isDodoConfigured() ? "dodo" : "mock";
-  let amount = def.floor;
+  let amount = BIKE_LOCATION_FLOOR[def.size];
+  let vinylSize: BikeSize = "small";
 
   db.transaction(() => {
     const row = db
       .prepare(
         `SELECT slot, name, url, logo_url, claimed_at, held_until, current_bid,
-                pending_payment_id, pending_at, click_count
+                pending_payment_id, pending_at, click_count, vinyl_size
          FROM bike_spots WHERE slot = ?`,
       )
       .get(def.slot) as SpotRow | undefined;
@@ -343,7 +443,24 @@ export async function createBikeCheckout(input: {
 
     const taken = Boolean(row.claimed_at && row.url);
     const currentBid = taken ? Number(row.current_bid) || 0 : 0;
-    amount = bikeNextPrice(def.floor, currentBid);
+    const currentSize = taken
+      ? parseBikeSize(row.vinyl_size, def.size)
+      : "small";
+    vinylSize = parseBikeSize(input.size, taken ? currentSize : "small");
+    const price = bikePrice({
+      locationSize: def.size,
+      taken,
+      currentBid,
+      currentSize,
+      nextSize: vinylSize,
+    });
+    if (price == null) {
+      throw new HttpError(
+        400,
+        "Vinyl on the tank can get bigger, not smaller. Pick the same size or larger.",
+      );
+    }
+    amount = price;
 
     insertCheckoutRows({
       bidId,
@@ -357,9 +474,9 @@ export async function createBikeCheckout(input: {
     });
 
     db.prepare(
-      `INSERT INTO bike_claims (bid_id, slot, url, name, logo_url)
-       VALUES (?, ?, ?, ?, ?)`,
-    ).run(bidId, def.slot, url, name, logoUrl);
+      `INSERT INTO bike_claims (bid_id, slot, url, name, logo_url, vinyl_size)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run(bidId, def.slot, url, name, logoUrl, vinylSize);
 
     db.prepare(
       `UPDATE bike_spots
@@ -378,6 +495,7 @@ export async function createBikeCheckout(input: {
     userName: input.userName,
     provider,
     kind: "bike",
+    datafastVisitorId: input.datafastVisitorId,
   });
 }
 

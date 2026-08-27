@@ -187,6 +187,7 @@ export async function createBidCheckout(input: {
   userEmail: string;
   userName: string;
   amount: unknown;
+  datafastVisitorId?: string | null;
 }) {
   const amount = parseBidAmount(input.amount);
   if (amount === null) {
@@ -241,6 +242,7 @@ export async function createBidCheckout(input: {
     userName: input.userName,
     provider,
     kind: "bid",
+    datafastVisitorId: input.datafastVisitorId,
   });
 }
 
@@ -250,6 +252,7 @@ export async function createDumpCheckout(input: {
   userEmail: string;
   userName: string;
   claimUrl: string;
+  datafastVisitorId?: string | null;
 }) {
   const product = getProduct(input.productId);
   if (!product || product.bid_count <= 0) {
@@ -324,6 +327,7 @@ export async function createDumpCheckout(input: {
     userName: input.userName,
     provider,
     kind: "dump",
+    datafastVisitorId: input.datafastVisitorId,
   });
 }
 
@@ -337,6 +341,7 @@ export async function createProductWithStartingBid(input: {
   userId: string;
   userEmail: string;
   userName: string;
+  datafastVisitorId?: string | null;
 }) {
   const amount = parseBidAmount(input.startingBid);
   if (amount === null) {
@@ -390,6 +395,7 @@ export async function createProductWithStartingBid(input: {
       userEmail: input.userEmail,
       userName: input.userName,
       amount,
+      datafastVisitorId: input.datafastVisitorId,
     });
     return { ...checkout, productId: existing.id };
   }
@@ -445,6 +451,7 @@ export async function createProductWithStartingBid(input: {
     userName: input.userName,
     provider,
     kind: "bid",
+    datafastVisitorId: input.datafastVisitorId,
   });
 
   return { ...checkout, productId };
@@ -476,6 +483,7 @@ export async function finalizeCheckout(input: {
   userName: string;
   provider: "dodo" | "mock";
   kind: BidKind;
+  datafastVisitorId?: string | null;
 }) {
   const productName =
     input.kind === "dump" ? `Dump ${input.product.name}` : input.product.name;
@@ -491,6 +499,7 @@ export async function finalizeCheckout(input: {
         userEmail: input.userEmail,
         userName: input.userName,
         kind: input.kind,
+        datafastVisitorId: input.datafastVisitorId,
       });
 
       db.prepare(
@@ -618,9 +627,17 @@ export function confirmPayment(
       ).run(processedAt, bid.id);
 
       const claim = db
-        .prepare("SELECT slot, name, url, logo_url FROM bike_claims WHERE bid_id = ?")
+        .prepare(
+          "SELECT slot, name, url, logo_url, vinyl_size FROM bike_claims WHERE bid_id = ?",
+        )
         .get(bid.id) as
-        | { slot: string; name: string; url: string; logo_url: string }
+        | {
+            slot: string;
+            name: string;
+            url: string;
+            logo_url: string;
+            vinyl_size: string | null;
+          }
         | undefined;
 
       if (claim) {
@@ -640,7 +657,7 @@ export function confirmPayment(
           db.prepare(
             `UPDATE bike_spots
              SET name = ?, url = ?, logo_url = ?, user_id = ?, payment_id = ?,
-                 current_bid = ?, claimed_at = ?, held_until = ?,
+                 current_bid = ?, claimed_at = ?, held_until = ?, vinyl_size = ?,
                  pending_payment_id = NULL, pending_at = NULL
              WHERE slot = ?`,
           ).run(
@@ -652,6 +669,7 @@ export function confirmPayment(
             bid.amount,
             processedAt,
             heldUntil,
+            claim.vinyl_size || "small",
             claim.slot,
           );
         } else {

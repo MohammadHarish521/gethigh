@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { BikeAuction, BikeFace, BikeSize, BikeSpot } from "../types";
 import { formatMoney } from "../utils/format";
 import { DumpFlipLabel } from "./DumpFlipLabel";
@@ -30,47 +30,23 @@ const FACE_WORD: Record<BikeFace, string> = {
 };
 
 export function BikeSpotBoard({ auction, onClaim, onFace }: BikeSpotBoardProps) {
-  const [now, setNow] = useState(() => Date.now());
   const ranked = useMemo(() => rankSpots(auction.spots), [auction.spots]);
   const taken = ranked.filter((spot) => spot.occupant);
   const open = ranked.filter((spot) => !spot.occupant);
-  const nextOff = soonestHeldUntil(taken, now);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
-    return () => window.clearInterval(timer);
-  }, []);
 
   return (
     <section className="mt-12 text-left">
-      <div className="flex justify-center">
-        <div className="glass-pill inline-flex max-w-full flex-nowrap items-center justify-center gap-x-2 whitespace-nowrap py-[2px] pr-[10px] pl-[3px] text-[13px] tracking-[-0.26px] text-muted sm:gap-x-2.5 sm:pr-[22px]">
-          <span className="chip-live-cta">
-            <span
-              className="live-dot inline-block h-2 w-2 rounded-full"
-              aria-hidden="true"
-            />
-            Live auction
-          </span>
-          <span>
-            <b className="num font-bold text-fg">{auction.taken}</b> of{" "}
-            {auction.total} tank spots taken
-            {nextOff
-              ? ` · next vinyl off in ${nextOff}`
-              : ` · ${auction.termDays}d on the bike`}
-          </span>
-        </div>
-      </div>
-
-      <h2 className="font-display mt-4 text-center text-[32px] leading-[0.98] font-extrabold tracking-[-0.06em] text-fg sm:text-[44px]">
+      <h2 className="font-display text-center text-[32px] leading-[0.98] font-extrabold tracking-[-0.06em] text-fg sm:text-[44px]">
         The auction, <span className="dump-word">live</span>.
       </h2>
       <p className="mx-auto mt-3 max-w-[520px] text-center text-[16px] leading-[1.4] font-medium tracking-[-0.36px] text-muted">
         Every spot shows its current top bid.
       </p>
       <p className="mx-auto mt-2 max-w-[520px] text-center text-[13px] leading-[1.4] font-medium tracking-[-0.02em] text-faint">
-        Spots from $80 Small · $150 Medium · $250 Large, with a premium on the
-        tank top.
+        Small from {formatMoney(auction.sizes.small)} · Mid from{" "}
+        {formatMoney(auction.sizes.medium)} · Large from{" "}
+        {formatMoney(auction.sizes.large)}. Bigger vinyl is 1.2× on that
+        spot’s ladder. Dump is always {auction.outbidMult}×.
       </p>
 
       <div className="mt-8 flex flex-col gap-3 sm:gap-[14px]">
@@ -152,11 +128,13 @@ function SpotRow({
             {spot.label}
           </p>
           <p className="mt-0.5 text-[13px] font-medium tracking-[-0.02em] text-muted">
-            {FACE_WORD[spot.face]} · {SIZE_WORD[spot.size]}
+            {FACE_WORD[spot.face]} ·{" "}
+            {SIZE_WORD[taken ? spot.size : spot.locationSize]}
+            {taken ? " vinyl" : ""}
           </p>
         </div>
         <span className="chip-clicks shrink-0 py-0.5 text-[13px]">
-          {SIZE_MARK[spot.size]}
+          {SIZE_MARK[taken ? spot.size : spot.locationSize]}
         </span>
       </button>
 
@@ -241,21 +219,4 @@ function rankSpots(spots: BikeSpot[]) {
     if (b.floor !== a.floor) return b.floor - a.floor;
     return a.label.localeCompare(b.label);
   });
-}
-
-function soonestHeldUntil(spots: BikeSpot[], now: number) {
-  let soonest = Number.POSITIVE_INFINITY;
-  for (const spot of spots) {
-    const held = spot.occupant?.heldUntil
-      ? new Date(spot.occupant.heldUntil).getTime()
-      : NaN;
-    if (Number.isFinite(held) && held > now && held < soonest) soonest = held;
-  }
-  if (!Number.isFinite(soonest)) return null;
-
-  const total = Math.max(0, Math.floor((soonest - now) / 1000));
-  const days = Math.floor(total / 86_400);
-  const hours = Math.floor((total % 86_400) / 3_600);
-  const minutes = Math.floor((total % 3_600) / 60);
-  return `${days}d ${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}m`;
 }

@@ -4,7 +4,7 @@ import { BikeSpotBoard } from "../components/BikeSpotBoard";
 import { BikeSpotModal } from "../components/BikeSpotModal";
 import { BikeTank } from "../components/BikeTank";
 import { formatMoney } from "../utils/format";
-import type { BikeAuction, BikeFace } from "../types";
+import type { BikeAuction, BikeFace, BikeSize } from "../types";
 
 export function BikePage() {
   const [auction, setAuction] = useState<BikeAuction | null>(null);
@@ -44,12 +44,12 @@ export function BikePage() {
     ? Math.min(100, Math.round((auction.raised / Math.max(auction.goal, 1)) * 100))
     : 0;
 
-  async function submitClaim(url: string) {
+  async function submitClaim(url: string, size: BikeSize) {
     if (!slot) return;
     setClaimError(null);
     setBusy(true);
     try {
-      const checkout = await api.createBikeSpot(slot, url);
+      const checkout = await api.createBikeSpot(slot, url, size);
       window.location.href = checkout.checkoutUrl;
     } catch (err: unknown) {
       setClaimError(
@@ -86,8 +86,12 @@ export function BikePage() {
         <span className="dump-word">NS400Z</span>.
       </h1>
       <p className="mx-auto mt-3 max-w-[520px] text-[16px] leading-[1.4] font-medium tracking-[-0.36px] text-muted sm:text-[18px]">
-        Twelve vinyl spots on a naked Pulsar tank. Dump them anytime. It stays on the
-        bike for {auction?.termDays ?? 30} days.
+        Twelve vinyl spots on a naked Pulsar tank. Small from{" "}
+        {formatMoney(auction?.sizes.small ?? 50)}, mid from{" "}
+        {formatMoney(auction?.sizes.medium ?? 100)}, large from{" "}
+        {formatMoney(auction?.sizes.large ?? 150)} — bump the vinyl 1.2× on that
+        ladder. Dump is 1.2×. It stays on the bike for {auction?.termDays ?? 30}{" "}
+        days.
       </p>
 
       {auction ? (
@@ -144,11 +148,12 @@ export function BikePage() {
 
       <p className="mx-auto mt-6 max-w-[460px] text-[13px] leading-[1.45] font-medium tracking-[-0.02em] text-muted">
         Vinyl goes on the real tank within 7 days of payment. Dump anyone on the
-        tank — a higher bid replaces the sticker. The leaderboard is a different
-        game.
+        tank — a higher bid replaces the sticker, and you can pay more to print
+        it larger. The leaderboard is a different game.
       </p>
 
       <BikeSpotModal
+        key={slot ?? "closed"}
         spot={active}
         termDays={auction?.termDays ?? 30}
         open={slot != null}
