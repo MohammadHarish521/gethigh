@@ -15,9 +15,9 @@ export const BIKE_TERM_DAYS = 30;
 export const BIKE_OUTBID_MULT = 1.2;
 /** Starting price for an empty spot, by location class. */
 export const BIKE_LOCATION_FLOOR: Record<BikeSize, number> = {
-  small: 50,
-  medium: 100,
-  large: 150,
+  small: 10,
+  medium: 15,
+  large: 20,
 };
 const SIZE_RANK: Record<BikeSize, number> = {
   small: 0,

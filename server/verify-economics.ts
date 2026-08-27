@@ -256,20 +256,20 @@ const hero = emptyTank.spots.find((spot) => spot.slot === "left-hero");
 const mid = emptyTank.spots.find((spot) => spot.slot === "left-mid");
 const knee = emptyTank.spots.find((spot) => spot.slot === "left-knee");
 check(
-  "small spots start at $50, mid at $100, large at $150",
-  knee?.floor === 50 && mid?.floor === 100 && hero?.floor === 150,
+  "small spots start at $10, mid at $15, large at $20",
+  knee?.floor === 10 && mid?.floor === 15 && hero?.floor === 20,
   `knee $${knee?.floor} · mid $${mid?.floor} · hero $${hero?.floor}`,
 );
 check(
   "empty large spots sell at the large location floor",
-  Boolean(hero && hero.minNextBid === 150 && hero.occupant === null),
+  Boolean(hero && hero.minNextBid === 20 && hero.occupant === null),
   `left-hero minNext = $${hero?.minNextBid}`,
 );
 check(
   "each location has its own 1.2× vinyl ladder",
-  bikeSizeFloor("small", "large") === 72 &&
-    bikeSizeFloor("medium", "large") === 144 &&
-    bikeSizeFloor("large", "large") === 216,
+  bikeSizeFloor("small", "large") === 15 &&
+    bikeSizeFloor("medium", "large") === 22 &&
+    bikeSizeFloor("large", "large") === 29,
   `S $${bikeSizeFloor("small", "small")}-${bikeSizeFloor("small", "large")} · M $${bikeSizeFloor("medium", "small")}-${bikeSizeFloor("medium", "large")} · L $${bikeSizeFloor("large", "small")}-${bikeSizeFloor("large", "large")}`,
 );
 
@@ -284,15 +284,15 @@ const afterClaim = listBikeSpots();
 const claimedHero = afterClaim.spots.find((spot) => spot.slot === "left-hero");
 check(
   "a paid tank claim occupies the spot at that location’s start",
-  claimedHero?.occupant?.vinylSize === "small" && claimedHero.currentBid === 150,
+  claimedHero?.occupant?.vinylSize === "small" && claimedHero.currentBid === 20,
   `hero is ${claimedHero?.occupant?.name} at $${claimedHero?.currentBid} ${claimedHero?.size}`,
 );
 
-const nextHero = bikeNextPrice(150, "small", "large");
+const nextHero = bikeNextPrice(20, "small", "large");
 check(
   "same-size dump is 1.2× the bid on the tank",
-  nextHero === 180,
-  `1.2× $150 = $${nextHero}`,
+  nextHero === 24,
+  `1.2× $20 = $${nextHero}`,
 );
 const tankOutbid = await createBikeCheckout({
   userId: "u2",

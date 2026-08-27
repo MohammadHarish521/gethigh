@@ -87,9 +87,9 @@ export function BikePage() {
       </h1>
       <p className="mx-auto mt-3 max-w-[520px] text-[16px] leading-[1.4] font-medium tracking-[-0.36px] text-muted sm:text-[18px]">
         Twelve vinyl spots on a naked Pulsar tank. Small from{" "}
-        {formatMoney(auction?.sizes.small ?? 50)}, mid from{" "}
-        {formatMoney(auction?.sizes.medium ?? 100)}, large from{" "}
-        {formatMoney(auction?.sizes.large ?? 150)} — bump the vinyl 1.2× on that
+        {formatMoney(auction?.sizes.small ?? 10)}, mid from{" "}
+        {formatMoney(auction?.sizes.medium ?? 15)}, large from{" "}
+        {formatMoney(auction?.sizes.large ?? 20)} — bump the vinyl 1.2× on that
         ladder. Dump is 1.2×. It stays on the bike for {auction?.termDays ?? 30}{" "}
         days.
       </p>
