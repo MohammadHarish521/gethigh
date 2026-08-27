@@ -62,6 +62,7 @@ import { isPlaceholderDescription } from "./listingMeta.js";
 import { fetchSiteIcon } from "./favicon.js";
 import { recordPresence } from "./presence.js";
 import { datafastRequestContext, datafastVisitorIdFromRequest } from "./datafast.js";
+import { getLiveStats, isDataFastLiveConfigured } from "./liveStats.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3001;
@@ -481,6 +482,22 @@ app.get("/api/bike", (_req, res) => {
   res.json(listBikeSpots());
 });
 
+app.get(
+  "/api/live",
+  asyncHandler(async (_req, res) => {
+    try {
+      res.json(await getLiveStats());
+    } catch (error) {
+      throw new HttpError(
+        502,
+        error instanceof Error
+          ? error.message
+          : "Could not read DataFast live visitors.",
+      );
+    }
+  }),
+);
+
 app.post(
   "/api/bike",
   asyncHandler(async (req, res) => {
@@ -705,6 +722,11 @@ app.listen(PORT, () => {
     isDodoConfigured()
       ? `Dodo payments: enabled (${getDodoEnvironment()})`
       : "Dodo payments: not configured — using mock checkout",
+  );
+  console.log(
+    isDataFastLiveConfigured()
+      ? "DataFast live stats: enabled"
+      : "DataFast live stats: add DATAFAST_API_KEY to show /bike visitors",
   );
   console.log(
     `Board economics: $${MIN_BID} floor · +${Math.round(MIN_RAISE_PCT * 100)}% min raise · ` +

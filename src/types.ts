@@ -174,3 +174,11 @@ export type BikeAuction = {
   sizes: Record<BikeSize, number>;
   spots: BikeSpot[];
 };
+
+export type LiveStats = {
+  configured: boolean;
+  visitors: number | null;
+  revenue: number | null;
+  views: number | null;
+  updatedAt: string;
+};

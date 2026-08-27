@@ -60,6 +60,9 @@ export function Navbar() {
           <NavLink to="/bike" className={navClass}>
             Bike
           </NavLink>
+          <NavLink to="/live" className={navClass}>
+            Live
+          </NavLink>
           <NavLink to="/how-it-works" className={navClass}>
             How it works
           </NavLink>

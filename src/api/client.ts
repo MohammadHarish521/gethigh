@@ -8,8 +8,25 @@ import type {
   UserBid,
   SponsorSeat,
   BikeAuction,
+  LiveStats,
 } from "../types";
 import { ensureDataFast } from "../lib/datafast";
+
+function apiErrorMessage(data: unknown) {
+  if (!data || typeof data !== "object") return "Request failed.";
+  const record = data as Record<string, unknown>;
+  if (typeof record.error === "string" && record.error.trim()) {
+    return record.error.trim();
+  }
+  if (record.error && typeof record.error === "object") {
+    const message = (record.error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message.trim();
+  }
+  if (typeof record.message === "string" && record.message.trim()) {
+    return record.message.trim();
+  }
+  return "Request failed.";
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -22,11 +39,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   const data = (await response.json().catch(() => ({}))) as T & {
-    error?: string;
+    error?: unknown;
+    message?: unknown;
   };
 
   if (!response.ok) {
-    throw new Error(data.error || "Request failed.");
+    throw new Error(apiErrorMessage(data));
   }
 
   return data;
@@ -91,6 +109,7 @@ export const api = {
   createSponsor: (slot: string, url: string) =>
     checkoutPost<CheckoutResponse>("/api/sponsors", { slot, url }),
   bike: () => request<BikeAuction>("/api/bike"),
+  live: () => request<LiveStats>("/api/live"),
   createBikeSpot: (slot: string, url: string, size: string) =>
     checkoutPost<CheckoutResponse>("/api/bike", { slot, url, size }),
   myBids: () => request<{ bids: UserBid[] }>("/api/me/bids"),
