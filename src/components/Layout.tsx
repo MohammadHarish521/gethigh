@@ -19,6 +19,9 @@ export function Layout({ children }: { children: ReactNode }) {
           <Link to="/how-it-works" className="hover:text-fg hover:underline">
             How it works
           </Link>
+          <Link to="/bike" className="hover:text-fg hover:underline">
+            NS400Z tank
+          </Link>
           <Link to="/" className="hover:text-fg hover:underline">
             Leaderboard
           </Link>

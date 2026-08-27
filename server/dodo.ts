@@ -59,7 +59,7 @@ export async function createDodoCheckout(input: {
   amountDollars: number;
   userEmail: string;
   userName: string;
-  kind?: "bid" | "dump" | "sponsor";
+  kind?: "bid" | "dump" | "sponsor" | "bike";
 }) {
   const client = getDodoClient();
   const productId = env("DODO_PRODUCT_ID");
@@ -82,9 +82,11 @@ export async function createDodoCheckout(input: {
     billing_currency: "USD",
     return_url: `${getAppUrl()}/payment/success?gethigh_payment_id=${input.paymentId}`,
     cancel_url:
-      kind === "dump" || kind === "sponsor"
-        ? getAppUrl()
-        : `${getAppUrl()}/product/${input.productId}`,
+      kind === "bike"
+        ? `${getAppUrl()}/bike`
+        : kind === "dump" || kind === "sponsor"
+          ? getAppUrl()
+          : `${getAppUrl()}/product/${input.productId}`,
     ...(guest
       ? {}
       : {

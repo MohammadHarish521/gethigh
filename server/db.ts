@@ -136,6 +136,30 @@ db.exec(`
     logo_url TEXT NOT NULL,
     FOREIGN KEY (bid_id) REFERENCES bids(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS bike_spots (
+    slot TEXT PRIMARY KEY,
+    name TEXT,
+    url TEXT,
+    logo_url TEXT,
+    user_id TEXT,
+    payment_id TEXT,
+    pending_payment_id TEXT,
+    pending_at TEXT,
+    claimed_at TEXT,
+    held_until TEXT,
+    current_bid INTEGER NOT NULL DEFAULT 0,
+    click_count INTEGER NOT NULL DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS bike_claims (
+    bid_id TEXT PRIMARY KEY,
+    slot TEXT NOT NULL,
+    url TEXT NOT NULL,
+    name TEXT NOT NULL,
+    logo_url TEXT NOT NULL,
+    FOREIGN KEY (bid_id) REFERENCES bids(id) ON DELETE CASCADE
+  );
 `);
 
 db.exec(`
@@ -198,6 +222,26 @@ for (const slot of [
   seedSponsorSeats.run(slot);
 }
 
+const seedBikeSpots = db.prepare(
+  "INSERT OR IGNORE INTO bike_spots (slot) VALUES (?)",
+);
+for (const slot of [
+  "left-shroud",
+  "left-upper",
+  "left-mid",
+  "left-hero",
+  "left-knee",
+  "right-shroud",
+  "right-upper",
+  "right-mid",
+  "right-hero",
+  "right-knee",
+  "top-hero",
+  "top-aft",
+]) {
+  seedBikeSpots.run(slot);
+}
+
 export type UserRow = {
   id: string;
   email: string;
@@ -223,7 +267,7 @@ export type ProductRow = {
   created_at: string;
 };
 
-export type BidKind = "bid" | "dump" | "sponsor";
+export type BidKind = "bid" | "dump" | "sponsor" | "bike";
 
 export type BidRow = {
   id: string;

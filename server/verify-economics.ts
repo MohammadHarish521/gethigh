@@ -241,6 +241,71 @@ check(
   `prices on the board: ${prices.join(", ")}`,
 );
 
+// --- NS400Z tank auction ------------------------------------------------
+const { BIKE_SPOTS, bikeNextPrice, createBikeCheckout, listBikeSpots } =
+  await import("./bike.js");
+
+const emptyTank = listBikeSpots();
+const hero = emptyTank.spots.find((spot) => spot.slot === "left-hero");
+check(
+  "empty left hero sells at its $250 floor",
+  Boolean(hero && hero.minNextBid === 250 && hero.occupant === null),
+  `left-hero minNext = $${hero?.minNextBid}`,
+);
+
+const tankClaim = await createBikeCheckout({
+  ...user,
+  slot: "left-hero",
+  url: "https://127.0.0.1/tank-brand",
+});
+confirmPayment(tankClaim.paymentId);
+const afterClaim = listBikeSpots();
+const claimedHero = afterClaim.spots.find((spot) => spot.slot === "left-hero");
+check(
+  "a paid tank claim occupies the spot at the floor",
+  claimedHero?.occupant?.name != null && claimedHero.currentBid === 250,
+  `hero is ${claimedHero?.occupant?.name} at $${claimedHero?.currentBid}`,
+);
+
+const nextHero = bikeNextPrice(250, 250);
+const tankOutbid = await createBikeCheckout({
+  userId: "u2",
+  userEmail: "rival@example.com",
+  userName: "Rival",
+  slot: "left-hero",
+  url: "https://127.0.0.1/tank-rival",
+});
+confirmPayment(tankOutbid.paymentId);
+const afterOutbid = listBikeSpots();
+const outbidHero = afterOutbid.spots.find((spot) => spot.slot === "left-hero");
+check(
+  "outbidding replaces the vinyl and ratchets the price",
+  outbidHero?.currentBid === nextHero &&
+    Boolean(outbidHero?.occupant?.url?.includes("tank-rival")),
+  `hero now $${outbidHero?.currentBid} (expected $${nextHero})`,
+);
+check(
+  "tank spots are not a dump — the previous logo is gone",
+  afterOutbid.taken === 1,
+  `${afterOutbid.taken} occupied after the outbid`,
+);
+
+const boardAfterBike = (
+  db
+    .prepare("SELECT MAX(current_bid) AS top FROM products WHERE bid_count > 0")
+    .get() as { top: number }
+).top;
+check(
+  "the tank auction does not sit on the dump board",
+  boardAfterBike === priceOf(entrant.productId!),
+  `board top still $${boardAfterBike}`,
+);
+check(
+  "twelve tank spots and a goal equal to the floors",
+  BIKE_SPOTS.length === 12 && emptyTank.goal === 1840,
+  `${BIKE_SPOTS.length} spots, goal $${emptyTank.goal}`,
+);
+
 // --- Recurring revenue on the real board --------------------------------
 const boardValue = 943;
 const monthly = Math.round(30 * DECAY_PER_DAY * boardValue);

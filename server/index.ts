@@ -39,6 +39,12 @@ import {
   listSponsorSeats,
   sponsorDestination,
 } from "./sponsors.js";
+import {
+  createBikeCheckout,
+  listBikeSpots,
+  bikeClaimForBid,
+  bikeDestination,
+} from "./bike.js";
 import { assertProductionPayments, getDodoEnvironment, isDodoConfigured, unwrapDodoWebhook } from "./dodo.js";
 import { applyDecay, startDecayScheduler } from "./decay.js";
 import {
@@ -465,6 +471,34 @@ app.get("/api/sponsors/:slot/go", (req, res, next) => {
   }
 });
 
+app.get("/api/bike", (_req, res) => {
+  res.json(listBikeSpots());
+});
+
+app.post(
+  "/api/bike",
+  asyncHandler(async (req, res) => {
+    const user = ensureGuestUser(req, res);
+    const result = await createBikeCheckout({
+      slot: String(req.body.slot || ""),
+      url: String(req.body.url || ""),
+      userId: user.id,
+      userEmail: user.email,
+      userName: user.name,
+    });
+    res.status(201).json(result);
+  }),
+);
+
+app.get("/api/bike/:slot/go", (req, res, next) => {
+  try {
+    const dest = bikeDestination(String(req.params.slot || ""));
+    res.redirect(302, dest);
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get("/api/me/bids", (req, res, next) => {
   try {
   const user = requireUser(req);
@@ -561,7 +595,9 @@ app.get("/api/payments/:id", (req, res, next) => {
               ? "dump"
               : bid.kind === "sponsor"
                 ? "sponsor"
-                : "bid",
+                : bid.kind === "bike"
+                  ? "bike"
+                  : "bid",
           dumpRank: bid.dump_rank,
           dumpHeldSeconds: bid.dump_held_seconds,
         }
@@ -573,9 +609,10 @@ app.get("/api/payments/:id", (req, res, next) => {
     becameNumberOne:
       payment.status === "succeeded" &&
       rankedProduct &&
-      bid?.kind !== "sponsor"
+      bid?.kind !== "sponsor" && bid?.kind !== "bike"
         ? getProductRank(rankedProduct.id) === 1
         : false,
+    bikeSlot: bid ? (bikeClaimForBid(bid.id)?.slot ?? null) : null,
   });
   } catch (error) {
     next(error);

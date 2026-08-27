@@ -52,6 +52,7 @@ function getPayment(id: string) {
 function bidKind(bid: BidRow): BidKind {
   if (bid.kind === "dump") return "dump";
   if (bid.kind === "sponsor") return "sponsor";
+  if (bid.kind === "bike") return "bike";
   return "bid";
 }
 
@@ -611,6 +612,56 @@ export function confirmPayment(
           claim.slot,
         );
       }
+    } else if (bidKind(bid) === "bike") {
+      db.prepare(
+        `UPDATE bids SET status = 'succeeded', confirmed_at = ? WHERE id = ?`,
+      ).run(processedAt, bid.id);
+
+      const claim = db
+        .prepare("SELECT slot, name, url, logo_url FROM bike_claims WHERE bid_id = ?")
+        .get(bid.id) as
+        | { slot: string; name: string; url: string; logo_url: string }
+        | undefined;
+
+      if (claim) {
+        const spot = db
+          .prepare(
+            `SELECT claimed_at, url, current_bid FROM bike_spots WHERE slot = ?`,
+          )
+          .get(claim.slot) as
+          | { claimed_at: string | null; url: string | null; current_bid: number }
+          | undefined;
+        const taken = Boolean(spot?.claimed_at && spot.url);
+        const currentBid = taken ? Number(spot?.current_bid) || 0 : 0;
+        if (!taken || bid.amount > currentBid) {
+          const heldUntil = new Date(
+            Date.now() + 30 * 86_400_000,
+          ).toISOString();
+          db.prepare(
+            `UPDATE bike_spots
+             SET name = ?, url = ?, logo_url = ?, user_id = ?, payment_id = ?,
+                 current_bid = ?, claimed_at = ?, held_until = ?,
+                 pending_payment_id = NULL, pending_at = NULL
+             WHERE slot = ?`,
+          ).run(
+            claim.name,
+            claim.url,
+            claim.logo_url,
+            bid.user_id,
+            payment.id,
+            bid.amount,
+            processedAt,
+            heldUntil,
+            claim.slot,
+          );
+        } else {
+          db.prepare(
+            `UPDATE bike_spots
+             SET pending_payment_id = NULL, pending_at = NULL
+             WHERE slot = ? AND pending_payment_id = ?`,
+          ).run(claim.slot, payment.id);
+        }
+      }
     } else if (bidKind(bid) === "dump") {
       const canDump =
         product.current_bid >= 1 && product.current_bid <= bid.amount;
@@ -727,7 +778,7 @@ export function confirmPayment(
     return {
       alreadyProcessed: false,
       becameNumberOne:
-        bidKind(updatedBid) === "sponsor"
+        bidKind(updatedBid) === "sponsor" || bidKind(updatedBid) === "bike"
           ? false
           : getProductRank(rankedId) === 1,
       product: updatedProduct,
@@ -753,6 +804,11 @@ export function failPayment(paymentId: string) {
     );
     db.prepare(
       `UPDATE sponsor_seats
+       SET pending_payment_id = NULL, pending_at = NULL
+       WHERE pending_payment_id = ?`,
+    ).run(payment.id);
+    db.prepare(
+      `UPDATE bike_spots
        SET pending_payment_id = NULL, pending_at = NULL
        WHERE pending_payment_id = ?`,
     ).run(payment.id);

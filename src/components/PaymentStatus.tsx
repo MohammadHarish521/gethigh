@@ -78,6 +78,27 @@ export function PaymentStatusView({
 
   const isDump = status.bid?.kind === "dump";
   const isSponsor = status.bid?.kind === "sponsor";
+  const isBike = status.bid?.kind === "bike";
+
+  if (isBike) {
+    return (
+      <div className="card px-6 py-10 text-center">
+        <p className="chip-live mx-auto">On the NS400Z</p>
+        <h1 className="font-display mt-4 text-[44px] leading-[0.98] font-extrabold tracking-[-0.06em]">
+          Your logo rides.
+        </h1>
+        <p className="mt-2 text-sm font-medium tracking-[-0.3px] text-muted">
+          Paid {formatMoney(status.payment.amount)}. Vinyl goes on the tank
+          within 7 days — until someone pays more.
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <Link to="/bike" className="btn-primary">
+            See the tank
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (isSponsor) {
     return (

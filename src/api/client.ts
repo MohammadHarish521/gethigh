@@ -7,6 +7,7 @@ import type {
   User,
   UserBid,
   SponsorSeat,
+  BikeAuction,
 } from "../types";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -90,6 +91,12 @@ export const api = {
     request<{ seats: SponsorSeat[]; price: number }>("/api/sponsors"),
   createSponsor: (slot: string, url: string) =>
     request<CheckoutResponse>("/api/sponsors", {
+      method: "POST",
+      body: JSON.stringify({ slot, url }),
+    }),
+  bike: () => request<BikeAuction>("/api/bike"),
+  createBikeSpot: (slot: string, url: string) =>
+    request<CheckoutResponse>("/api/bike", {
       method: "POST",
       body: JSON.stringify({ slot, url }),
     }),

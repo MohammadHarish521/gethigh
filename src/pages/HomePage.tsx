@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import {
   DumpFeed,
@@ -161,6 +161,14 @@ export function HomePage() {
               }
             }}
           />
+          <p className="mt-3 text-center">
+            <Link
+              to="/bike"
+              className="text-[13px] font-semibold tracking-[-0.02em] text-accent hover:underline"
+            >
+              Your logo on my NS400Z →
+            </Link>
+          </p>
         </div>
         <div className="hidden lg:block lg:sticky lg:top-24">
           <SponsorRail

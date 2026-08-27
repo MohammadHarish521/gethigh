@@ -710,6 +710,70 @@ body {
     0 0 0 4px #ff8f394d;
 }
 
+.bike-stage {
+  border-radius: 28px;
+  background: #fff;
+  box-shadow: var(--shadow-card);
+  padding: 8px 10px 12px;
+}
+
+.bike-hotzone {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.bike-hotzone > * {
+  pointer-events: auto;
+}
+
+.bike-spot-poly {
+  fill: rgb(12 14 18 / 0.38);
+  stroke: rgb(255 255 255 / 0.9);
+  stroke-width: 1.75px;
+  stroke-dasharray: 6 5;
+  stroke-linejoin: round;
+  cursor: pointer;
+  vector-effect: non-scaling-stroke;
+  transition: fill 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.bike-spot-poly:hover,
+.bike-spot-poly:focus-visible {
+  fill: rgb(12 14 18 / 0.55);
+  stroke: #fff;
+  outline: none;
+}
+
+.bike-spot-poly-taken {
+  fill: transparent;
+  stroke: rgb(255 255 255 / 0.45);
+  stroke-dasharray: none;
+}
+
+.bike-spot-poly-taken:hover,
+.bike-spot-poly-taken:focus-visible,
+.bike-spot-poly-taken.bike-spot-poly-hot {
+  fill: rgb(223 92 15 / 0.22);
+  stroke: rgb(255 215 176 / 0.95);
+}
+
+.bike-sticker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: transparent;
+  padding: 0;
+  filter: drop-shadow(0 8px 16px rgb(0 0 0 / 0.4));
+}
+
+.bike-sticker img {
+  background: transparent;
+  border-color: transparent;
+  padding: 0;
+}
+
 .dump-flip {
   position: relative;
   display: inline-block;

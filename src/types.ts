@@ -85,7 +85,7 @@ export type CheckoutResponse = {
   checkoutUrl: string;
   mock: boolean;
   productId?: string;
-  kind?: "bid" | "dump" | "sponsor";
+  kind?: "bid" | "dump" | "sponsor" | "bike";
 };
 
 export type SponsorOccupant = {
@@ -115,11 +115,50 @@ export type PaymentStatus = {
     id: string;
     amount: number;
     status: string;
-    kind?: "bid" | "dump" | "sponsor";
+    kind?: "bid" | "dump" | "sponsor" | "bike";
     dumpRank?: number | null;
     dumpHeldSeconds?: number | null;
   } | null;
   product: Product | null;
   claimProduct?: Product | null;
   becameNumberOne: boolean;
+  bikeSlot?: string | null;
+};
+
+export type BikeFace = "left" | "right" | "top";
+export type BikeSize = "small" | "medium" | "large";
+
+export type BikeOccupant = {
+  name: string;
+  url: string;
+  logoUrl: string;
+  clickCount: number;
+  heldUntil: string | null;
+};
+
+export type BikeSpot = {
+  slot: string;
+  face: BikeFace;
+  size: BikeSize;
+  floor: number;
+  label: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  points: Array<[number, number]>;
+  currentBid: number;
+  minNextBid: number;
+  locked: boolean;
+  occupant: BikeOccupant | null;
+};
+
+export type BikeAuction = {
+  bike: string;
+  termDays: number;
+  raised: number;
+  goal: number;
+  taken: number;
+  total: number;
+  spots: BikeSpot[];
 };

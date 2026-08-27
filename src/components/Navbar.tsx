@@ -61,6 +61,9 @@ export function Navbar() {
             <span className="sm:hidden">Board</span>
             <span className="hidden sm:inline">Leaderboard</span>
           </NavLink>
+          <NavLink to="/bike" className={navClass}>
+            Bike
+          </NavLink>
           <NavLink to="/how-it-works" className={navClass}>
             How it works
           </NavLink>
