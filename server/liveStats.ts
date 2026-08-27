@@ -199,9 +199,11 @@ async function fetchLiveStats(): Promise<LiveStats> {
     }
   }
 
+  const boardVisitors = Math.round(presence.views / 5);
+
   return emptyStats({
     configured: true,
-    visitors: overview.visitors,
+    visitors: boardVisitors + (overview.visitors ?? 0),
     revenue: listing + (overview.revenue ?? 0),
     views: Math.max(presence.views, overview.views ?? 0),
   });
