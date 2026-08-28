@@ -22,6 +22,7 @@ export type Product = {
   decayPerDay: number;
   rank: number | null;
   clickCount: number;
+  board?: "alltime" | "today";
   createdAt: string;
 };
 

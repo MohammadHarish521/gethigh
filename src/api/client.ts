@@ -65,6 +65,8 @@ export const api = {
       minBid: number;
       minRaise: number;
       minRaisePct: number;
+      dailyMinBid: number;
+      dailyMinRaise: number;
       dumpPremium: number;
       decayPerDay: number;
       revenue: number;
@@ -84,7 +86,10 @@ export const api = {
       body: JSON.stringify({ name, email, password }),
     }),
   logout: () => request<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
-  products: () => request<{ products: Product[] }>("/api/products"),
+  products: (board?: "alltime" | "today") =>
+    request<{ products: Product[] }>(
+      board === "today" ? "/api/products?board=today" : "/api/products",
+    ),
   product: (id: string) =>
     request<{
       product: Product;
@@ -97,13 +102,20 @@ export const api = {
     logoUrl: string;
     creatorName: string;
     startingBid: number;
+    board?: "alltime" | "today";
   }) => checkoutPost<CheckoutResponse>("/api/products", input),
   createBid: (productId: string, amount: number) =>
     checkoutPost<CheckoutResponse>("/api/bids", { productId, amount }),
   createDump: (productId: string, url: string) =>
     checkoutPost<CheckoutResponse>("/api/dumps", { productId, url }),
-  recentDumps: () => request<{ dumps: RecentDump[] }>("/api/dumps"),
-  recentActivity: () => request<{ activity: ActivityItem[] }>("/api/activity"),
+  recentDumps: (board?: "alltime" | "today") =>
+    request<{ dumps: RecentDump[] }>(
+      board === "today" ? "/api/dumps?board=today" : "/api/dumps",
+    ),
+  recentActivity: (board?: "alltime" | "today") =>
+    request<{ activity: ActivityItem[] }>(
+      board === "today" ? "/api/activity?board=today" : "/api/activity",
+    ),
   sponsors: () =>
     request<{ seats: SponsorSeat[]; price: number }>("/api/sponsors"),
   createSponsor: (slot: string, url: string) =>

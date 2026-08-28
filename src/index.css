@@ -243,6 +243,57 @@ body {
     backdrop-filter: blur(12px);
   }
 
+  .board-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 9999px;
+    background: #f0eeea;
+  }
+
+  .board-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 0;
+    border-radius: 9999px;
+    background: transparent;
+    padding: 6px 14px;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--color-fire-deep);
+    cursor: pointer;
+    transition:
+      background-color 0.16s ease,
+      color 0.16s ease,
+      box-shadow 0.16s ease;
+  }
+
+  .board-toggle-btn.is-active {
+    background: #fff;
+    color: var(--color-fg-strong);
+    box-shadow: 0 1px 3px rgb(26 46 63 / 0.08);
+  }
+
+  .board-toggle-trophy {
+    width: 14px;
+    height: 14px;
+    color: var(--color-fire-deep);
+  }
+
+  .board-toggle-btn.is-active .board-toggle-trophy {
+    color: var(--color-fire-deep);
+  }
+
+  .board-toggle-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    background: var(--color-fire-deep);
+  }
+
   .font-display {
     font-family: var(--font-display);
   }

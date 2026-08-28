@@ -8,14 +8,18 @@ import {
   type ProductRow,
 } from "./db.js";
 import { HttpError } from "./http.js";
-import { createDodoCheckout, getAppUrl, isDodoConfigured } from "./dodo.js";
+import { createDodoCheckout, getAppUrl, isDodoConfigured, dodoErrorCode } from "./dodo.js";
 import {
-  MIN_BID,
   bidCharge,
+  boardDayStamp,
   dumpPrice,
   listingKey,
+  minBidFor,
   minimumNextBid,
   parseBidAmount,
+  parseBoard,
+  productBoard,
+  type BoardKind,
 } from "./ranking.js";
 import {
   fetchListingMeta,
@@ -56,37 +60,80 @@ function bidKind(bid: BidRow): BidKind {
   return "bid";
 }
 
+const HIDDEN_BOARD_IDS = "('bike-ns400z','sponsor-board')";
+
+function liveBoardClause(alias: string, board: BoardKind) {
+  const prefix = alias ? `${alias}.` : "";
+  const hidden = `${prefix}id NOT IN ${HIDDEN_BOARD_IDS}`;
+  if (board === "today") {
+    return {
+      sql: `${hidden} AND ${prefix}board = 'today' AND ${prefix}board_day = ?`,
+      params: [boardDayStamp()] as string[],
+    };
+  }
+  return {
+    sql: `${hidden} AND IFNULL(${prefix}board, 'alltime') = 'alltime'`,
+    params: [] as string[],
+  };
+}
+
+function assertBoardOpen(product: ProductRow) {
+  if (productBoard(product) !== "today") return;
+  if (product.board_day !== boardDayStamp()) {
+    throw new HttpError(404, "Yesterday’s board is closed. Bid on today’s.");
+  }
+}
+
 /**
- * Highest live price anywhere on the board. Every paid bid has to clear this,
- * otherwise a brand-new listing could enter at the $5 floor forever and sit
+ * Highest live price on one board. Every paid bid has to clear this,
+ * otherwise a brand-new listing could enter at the floor forever and sit
  * tied with the listings already at that price.
  */
-function boardTopBid() {
+function boardTopBid(board: BoardKind = "alltime") {
+  const filter = liveBoardClause("", board);
   const row = db
-    .prepare("SELECT MAX(current_bid) AS top FROM products WHERE bid_count > 0")
-    .get() as { top: number | null } | undefined;
+    .prepare(
+      `SELECT MAX(current_bid) AS top FROM products
+       WHERE bid_count > 0 AND ${filter.sql}`,
+    )
+    .get(...filter.params) as { top: number | null } | undefined;
   return row?.top ?? 0;
 }
 
 /** Cheapest bid the board will accept right now, from any entry point. */
-export function boardEntryBid() {
-  return minimumNextBid(boardTopBid());
+export function boardEntryBid(board: BoardKind = "alltime") {
+  return minimumNextBid(boardTopBid(board), board);
+}
+
+export function listLiveProducts(board: BoardKind = "alltime") {
+  const filter = liveBoardClause("", board);
+  return db
+    .prepare(
+      `SELECT * FROM products
+       WHERE bid_count > 0 AND ${filter.sql}
+       ORDER BY current_bid DESC, current_bid_at DESC, created_at DESC`,
+    )
+    .all(...filter.params) as ProductRow[];
 }
 
 export function getProductRank(productId: string) {
+  const product = getProduct(productId);
+  if (!product || product.bid_count <= 0) return null;
+  const board = productBoard(product);
+  const filter = liveBoardClause("", board);
   const ranked = db
     .prepare(
       `SELECT id FROM products
-       WHERE bid_count > 0
+       WHERE bid_count > 0 AND ${filter.sql}
        ORDER BY current_bid DESC, current_bid_at DESC, created_at DESC`,
     )
-    .all() as Array<{ id: string }>;
+    .all(...filter.params) as Array<{ id: string }>;
 
   const index = ranked.findIndex((row) => row.id === productId);
   return index === -1 ? null : index + 1;
 }
 
-function findProductByUrl(url: string) {
+function findProductByUrl(url: string, board: BoardKind = "alltime") {
   let key: string;
   try {
     key = listingKey(url);
@@ -94,7 +141,10 @@ function findProductByUrl(url: string) {
     return undefined;
   }
 
-  const rows = db.prepare("SELECT * FROM products").all() as ProductRow[];
+  const filter = liveBoardClause("", board);
+  const rows = db
+    .prepare(`SELECT * FROM products WHERE ${filter.sql}`)
+    .all(...filter.params) as ProductRow[];
   return rows.find((row) => {
     try {
       return listingKey(row.url) === key;
@@ -104,8 +154,8 @@ function findProductByUrl(url: string) {
   });
 }
 
-function findLiveProductByUrl(url: string) {
-  const row = findProductByUrl(url);
+function findLiveProductByUrl(url: string, board: BoardKind = "alltime") {
+  const row = findProductByUrl(url, board);
   return row && row.bid_count > 0 ? row : undefined;
 }
 
@@ -189,27 +239,28 @@ export async function createBidCheckout(input: {
   amount: unknown;
   datafastVisitorId?: string | null;
 }) {
-  const amount = parseBidAmount(input.amount);
-  if (amount === null) {
-    throw new HttpError(
-      400,
-      `Bid amount must be a whole dollar amount of at least $${MIN_BID}.`,
-    );
-  }
-
   const product = getProduct(input.productId);
   if (!product || product.bid_count <= 0) {
     throw new HttpError(404, "Product not found.");
   }
+  assertBoardOpen(product);
+  const board = productBoard(product);
+  const amount = parseBidAmount(input.amount, board);
+  if (amount === null) {
+    throw new HttpError(
+      400,
+      `Bid amount must be a whole dollar amount of at least $${minBidFor(board)}.`,
+    );
+  }
 
   // A bid has to clear both the listing it lands on and the top of the board,
   // so prices only ever move up and no two listings can tie.
-  const benchmark = Math.max(product.current_bid, boardTopBid());
-  const charge = bidCharge(benchmark, amount);
+  const benchmark = Math.max(product.current_bid, boardTopBid(board));
+  const charge = bidCharge(benchmark, amount, board);
   if (charge === null) {
     throw new HttpError(
       400,
-      `Bid must be at least $${minimumNextBid(benchmark)}. The top of the board is $${benchmark}.`,
+      `Bid must be at least $${minimumNextBid(benchmark, board)}. The top of the board is $${benchmark}.`,
     );
   }
 
@@ -258,13 +309,15 @@ export async function createDumpCheckout(input: {
   if (!product || product.bid_count <= 0) {
     throw new HttpError(404, "Product not found.");
   }
-  const amount = dumpPrice(product.current_bid);
+  assertBoardOpen(product);
+  const board = productBoard(product);
+  const amount = dumpPrice(product.current_bid, board);
   if (amount === null) {
     throw new HttpError(400, "They’re already on the floor.");
   }
 
   const claimUrl = normalizeClaimUrl(input.claimUrl);
-  const existingClaim = findProductByUrl(claimUrl);
+  const existingClaim = findProductByUrl(claimUrl, board);
   const meta = existingClaim ? null : await fetchListingMeta(claimUrl);
   const bidId = crypto.randomUUID();
   const paymentId = crypto.randomUUID();
@@ -289,8 +342,9 @@ export async function createDumpCheckout(input: {
       db.prepare(
         `INSERT INTO products (
            id, name, description, url, logo_url, creator_name, creator_id,
-           current_bid, current_bid_at, decayed_at, decay_anchor, bid_count, created_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, 0, 0, ?)`,
+           current_bid, current_bid_at, decayed_at, decay_anchor, bid_count, created_at,
+           board, board_day
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, 0, 0, ?, ?, ?)`,
       ).run(
         claimProductId,
         name,
@@ -301,6 +355,8 @@ export async function createDumpCheckout(input: {
         input.userId,
         createdAt,
         createdAt,
+        board,
+        board === "today" ? boardDayStamp() : null,
       );
     }
 
@@ -342,16 +398,18 @@ export async function createProductWithStartingBid(input: {
   userEmail: string;
   userName: string;
   datafastVisitorId?: string | null;
+  board?: unknown;
 }) {
-  const amount = parseBidAmount(input.startingBid);
+  const board = parseBoard(input.board);
+  const amount = parseBidAmount(input.startingBid, board);
   if (amount === null) {
     throw new HttpError(
       400,
-      `Starting bid must be a whole dollar amount of at least $${MIN_BID}.`,
+      `Starting bid must be a whole dollar amount of at least $${minBidFor(board)}.`,
     );
   }
 
-  const entry = boardEntryBid();
+  const entry = boardEntryBid(board);
   if (amount < entry) {
     throw new HttpError(
       400,
@@ -387,7 +445,7 @@ export async function createProductWithStartingBid(input: {
   const resolvedName = (meta.title || name).slice(0, 80);
   const resolvedDescription = (meta.description || description).slice(0, 500);
 
-  const existing = findLiveProductByUrl(url);
+  const existing = findLiveProductByUrl(url, board);
   if (existing) {
     const checkout = await createBidCheckout({
       productId: existing.id,
@@ -410,8 +468,9 @@ export async function createProductWithStartingBid(input: {
     db.prepare(
       `INSERT INTO products (
          id, name, description, url, logo_url, creator_name, creator_id,
-         current_bid, current_bid_at, decayed_at, decay_anchor, bid_count, created_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, 0, 0, ?)`,
+         current_bid, current_bid_at, decayed_at, decay_anchor, bid_count, created_at,
+         board, board_day
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, 0, 0, ?, ?, ?)`,
     ).run(
       productId,
       resolvedName,
@@ -422,6 +481,8 @@ export async function createProductWithStartingBid(input: {
       input.userId,
       createdAt,
       createdAt,
+      board,
+      board === "today" ? boardDayStamp() : null,
     );
 
     insertCheckoutRows({
@@ -523,6 +584,12 @@ export async function finalizeCheckout(input: {
         );
       })();
       console.error("Dodo checkout failed", error);
+      if (dodoErrorCode(error) === "REQUEST_AMOUNT_BELOW_MINIMUM") {
+        throw new HttpError(
+          502,
+          "That bid is below the Dodo product minimum. In the Dodo dashboard, set the Pay What You Want floor to $1 so Today’s $2 bids can check out.",
+        );
+      }
       throw new HttpError(502, "Could not start checkout. Try again.");
     }
   }
@@ -870,7 +937,8 @@ export function markWebhookProcessed(eventId: string) {
   return result.changes > 0;
 }
 
-export function listRecentActivity(limit = 12) {
+export function listRecentActivity(limit = 12, board: BoardKind = "alltime") {
+  const filter = liveBoardClause("p", board);
   return db
     .prepare(
       `SELECT
@@ -882,10 +950,11 @@ export function listRecentActivity(limit = 12) {
        JOIN users u ON u.id = b.user_id
        WHERE b.status = 'succeeded'
          AND IFNULL(b.kind, 'bid') IN ('bid', 'dump')
+         AND ${filter.sql}
        ORDER BY COALESCE(b.confirmed_at, b.created_at) DESC
        LIMIT ?`,
     )
-    .all(limit) as Array<{
+    .all(...filter.params, limit) as Array<{
     id: string;
     amount: number;
     kind: BidKind;
@@ -900,7 +969,8 @@ export function listRecentActivity(limit = 12) {
   }>;
 }
 
-export function listRecentDumps(limit = 8) {
+export function listRecentDumps(limit = 8, board: BoardKind = "alltime") {
+  const filter = liveBoardClause("p", board);
   return db
     .prepare(
       `SELECT
@@ -909,10 +979,11 @@ export function listRecentDumps(limit = 8) {
        FROM bids b
        JOIN products p ON p.id = b.product_id
        WHERE b.kind = 'dump' AND b.status = 'succeeded' AND b.dump_rank IS NOT NULL
+         AND ${filter.sql}
        ORDER BY b.confirmed_at DESC
        LIMIT ?`,
     )
-    .all(limit) as Array<{
+    .all(...filter.params, limit) as Array<{
     id: string;
     amount: number;
     dump_rank: number | null;

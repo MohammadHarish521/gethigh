@@ -26,7 +26,9 @@ export function applyDecay(options: { force?: boolean } = {}) {
   const rows = db
     .prepare(
       `SELECT id, current_bid, decay_anchor, decayed_at
-       FROM products WHERE current_bid > 0`,
+       FROM products
+       WHERE current_bid > 0
+         AND IFNULL(board, 'alltime') != 'today'`,
     )
     .all() as DecayRow[];
   if (rows.length === 0) return 0;

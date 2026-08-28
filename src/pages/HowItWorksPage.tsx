@@ -4,19 +4,19 @@ const steps = [
   {
     n: "1",
     title: "Dump anyone",
-    body: "Pay a 25% premium on their current bid, paste your URL, and you sit in their spot at that higher number. They drop to $0 and last — still on the board, just humiliated.",
+    body: "Pay a 25% premium on their current bid, paste your URL, and you sit in their spot at that higher number. They drop to $0 and last — still on the board, just humiliated. Same dump on All-time and Today.",
     tone: "text-fire-deep",
   },
   {
     n: "2",
     title: "Or take the seat",
-    body: "Paste a URL or @handle and pay what you type. A bid always takes #1, so it has to clear the top of the board by $5 or 10%, whichever is bigger. Two listings can never sit at the same price. Every bid is charged in full.",
+    body: "Paste a URL or @handle and pay what you type. On the all-time board a bid has to clear the top by $5 or 10%, whichever is bigger. Today’s board starts at $2 and climbs $1. Two listings can never sit at the same price. Every bid is charged in full.",
     tone: "text-accent",
   },
   {
     n: "3",
     title: "Hold it or lose it",
-    body: "Every spot bleeds 5% of its price a day. Stop feeding your listing and it sinks on its own — and gets cheap enough for anyone to dump.",
+    body: "All-time spots bleed 5% of their price a day. Stop feeding a listing and it sinks — cheap enough to dump. Today’s board doesn’t decay; it just wipes at midnight.",
     tone: "text-fg-strong",
   },
   {

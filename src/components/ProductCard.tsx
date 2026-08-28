@@ -4,7 +4,6 @@ import type { Product } from "../types";
 import {
   clicksPerDollar,
   formatMoney,
-  formatTimeAgo,
   outboundPath,
   plural,
 } from "../utils/format";
@@ -150,16 +149,6 @@ export function ProductCard({
             <span className="shrink-0 text-[13px] font-medium tracking-[-0.02em] text-muted">
               {plural(product.bidCount, "bid")}
             </span>
-            {product.currentBidAt ? (
-              <>
-                <span className="text-muted" aria-hidden="true">
-                  ·
-                </span>
-                <time className="truncate text-[13px] font-medium tracking-[-0.02em] text-muted">
-                  {formatTimeAgo(product.currentBidAt)}
-                </time>
-              </>
-            ) : null}
           </span>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { PaymentStatus } from "../types";
+import { boardHomePath } from "../lib/constants";
 import { formatHeld, formatMoney } from "../utils/format";
 
 type PaymentStatusProps = {
@@ -76,6 +77,10 @@ export function PaymentStatusView({
     );
   }
 
+  const boardHref = boardHomePath(
+    status.claimProduct?.board ?? status.product?.board,
+  );
+
   const isDump = status.bid?.kind === "dump";
   const isSponsor = status.bid?.kind === "sponsor";
   const isBike = status.bid?.kind === "bike";
@@ -112,7 +117,7 @@ export function PaymentStatusView({
           in that seat — no decay, no dump.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
-          <Link to="/" className="btn-primary">
+          <Link to={boardHref} className="btn-primary">
             See the board
           </Link>
         </div>
@@ -144,7 +149,7 @@ export function PaymentStatusView({
             Dump only lands if the price is still what you paid.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Link to="/" className="btn-ghost">
+            <Link to={boardHref} className="btn-ghost">
               See leaderboard
             </Link>
           </div>
@@ -178,7 +183,7 @@ export function PaymentStatusView({
           >
             {copied ? "Copied" : "Copy kill card"}
           </button>
-          <Link to="/" className="btn-ghost">
+          <Link to={boardHref} className="btn-ghost">
             See leaderboard
           </Link>
         </div>
@@ -205,7 +210,7 @@ export function PaymentStatusView({
             View product
           </Link>
         ) : null}
-        <Link to="/" className="btn-ghost">
+        <Link to={boardHref} className="btn-ghost">
           See leaderboard
         </Link>
       </div>

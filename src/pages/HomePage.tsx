@@ -9,20 +9,27 @@ import {
 } from "../components/DumpFeed";
 import { DumpSpotModal } from "../components/DumpSpotModal";
 import { Leaderboard } from "../components/Leaderboard";
+import { BoardToggle } from "../components/BoardToggle";
 import { OutbidBox } from "../components/OutbidBox";
 import { SponsorRail } from "../components/SponsorRail";
 import { SponsorSeatModal } from "../components/SponsorSeatModal";
 import { useProducts } from "../hooks/useProducts";
-import { MIN_BID, SPONSOR_PRICE, minimumNextBid } from "../lib/constants";
+import {
+  SPONSOR_PRICE,
+  minimumNextBid,
+  type BoardKind,
+} from "../lib/constants";
 import type { ActivityItem, Product, RecentDump, SponsorSeat } from "../types";
 import { listingsMatch, parseListingInput } from "../utils/format";
 import { makeLogo } from "../utils/logo";
 
 export function HomePage() {
-  const { products, loading, error: loadError } = useProducts();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const board: BoardKind =
+    searchParams.get("board") === "today" ? "today" : "alltime";
+  const { products, loading, error: loadError } = useProducts(board);
   const [url, setUrl] = useState(searchParams.get("url") ?? "");
-  const [amount, setAmount] = useState(MIN_BID);
+  const [amount, setAmount] = useState(minimumNextBid(0, board));
   const [error, setError] = useState<string | null>(null);
   const [dumpingId, setDumpingId] = useState<string | null>(null);
   const [dumpTarget, setDumpTarget] = useState<Product | null>(null);
@@ -36,7 +43,15 @@ export function HomePage() {
   const [sponsorBusy, setSponsorBusy] = useState(false);
 
   const topBid = products[0]?.currentBid ?? 0;
-  const claimPrice = products[0]?.minNextBid ?? minimumNextBid(topBid);
+  const claimPrice = products[0]?.minNextBid ?? minimumNextBid(topBid, board);
+
+  function setBoard(next: BoardKind) {
+    const nextParams = new URLSearchParams(searchParams);
+    if (next === "today") nextParams.set("board", "today");
+    else nextParams.delete("board");
+    setSearchParams(nextParams, { replace: true });
+    setError(null);
+  }
 
   useEffect(() => {
     setAmount(claimPrice);
@@ -51,7 +66,11 @@ export function HomePage() {
     let cancelled = false;
 
     function loadFeed() {
-      Promise.all([api.recentDumps(), api.recentActivity(), api.sponsors()])
+      Promise.all([
+        api.recentDumps(board),
+        api.recentActivity(board),
+        api.sponsors(),
+      ])
         .then(([dumpData, activityData, sponsorData]) => {
           if (cancelled) return;
           setDumps(dumpData.dumps);
@@ -70,7 +89,7 @@ export function HomePage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [board]);
 
   const existing = findExisting(products, url);
 
@@ -125,9 +144,13 @@ export function HomePage() {
           />
         </div>
         <div className="min-w-0">
+          <div className="mb-5 flex justify-center">
+            <BoardToggle value={board} onChange={setBoard} />
+          </div>
           <OutbidBox
             claimPrice={claimPrice}
             amount={amount}
+            board={board}
             onAmount={(value) => {
               setAmount(value);
               setError(null);
@@ -152,6 +175,7 @@ export function HomePage() {
                       logoUrl: makeLogo(listing.name, "#508200"),
                       creatorName: listing.name,
                       startingBid: amount,
+                      board,
                     });
                 window.location.href = checkout.checkoutUrl;
               } catch (err: unknown) {
@@ -214,6 +238,7 @@ export function HomePage() {
               loading={loading}
               loadError={loadError}
               products={products}
+              board={board}
               onTakeOne={() => {
                 setAmount(claimPrice);
                 setError(null);
@@ -237,6 +262,7 @@ export function HomePage() {
             loading={loading}
             loadError={loadError}
             products={products}
+            board={board}
             onTakeOne={() => {
               setAmount(claimPrice);
               setError(null);
@@ -310,6 +336,7 @@ function Board({
   loading,
   loadError,
   products,
+  board,
   onTakeOne,
   onDump,
   dumpingId,
@@ -317,6 +344,7 @@ function Board({
   loading: boolean;
   loadError: string | null;
   products: Product[];
+  board: BoardKind;
   onTakeOne: () => void;
   onDump: (product: Product) => void;
   dumpingId: string | null;
@@ -342,6 +370,7 @@ function Board({
   return (
     <Leaderboard
       products={products}
+      board={board}
       onTakeOne={onTakeOne}
       onDump={onDump}
       dumpingId={dumpingId}

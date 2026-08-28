@@ -1,3 +1,4 @@
+import type { BoardKind } from "../lib/constants";
 import type { Product } from "../types";
 import { dumpBadge, FloatingBadge } from "./FloatingMedal";
 import { ProductCard } from "./ProductCard";
@@ -8,6 +9,7 @@ type LeaderboardProps = {
   onDump: (product: Product) => void;
   dumpingId?: string | null;
   flashId?: string | null;
+  board?: BoardKind;
 };
 
 export function Leaderboard({
@@ -16,17 +18,19 @@ export function Leaderboard({
   onDump,
   dumpingId,
   flashId,
+  board = "alltime",
 }: LeaderboardProps) {
   if (products.length === 0) {
     return (
       <div className="card flex flex-col items-center px-6 py-12 text-center">
         <FloatingBadge {...dumpBadge} size="lg" glowStrength="soft" />
         <h3 className="mt-4 font-display text-[28px] leading-[1.1] font-extrabold tracking-[-0.04em] text-fg-strong">
-          The throne is empty
+          {board === "today" ? "Today is empty" : "The throne is empty"}
         </h3>
         <p className="mt-2 max-w-sm text-[16px] leading-[1.4] font-medium tracking-[-0.02em] text-muted">
-          $5 takes #1. Then someone dumps you. That’s the whole sport — paste a
-          URL above and start it.
+          {board === "today"
+            ? "$2 takes #1. Then $1 to climb. The board wipes at midnight."
+            : "$5 takes #1. Then someone dumps you. That’s the whole sport — paste a URL above and start it."}
         </p>
         <button
           type="button"

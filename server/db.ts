@@ -186,6 +186,8 @@ addColumn("payments", "dodo_payment_id", "TEXT");
 addColumn("sponsor_seats", "click_count", "INTEGER NOT NULL DEFAULT 0");
 addColumn("bike_spots", "vinyl_size", "TEXT");
 addColumn("bike_claims", "vinyl_size", "TEXT");
+addColumn("products", "board", "TEXT NOT NULL DEFAULT 'alltime'");
+addColumn("products", "board_day", "TEXT");
 
 db.exec(`
   CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_dodo_session
@@ -195,6 +197,9 @@ db.exec(`
   CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_dodo_payment
     ON payments(dodo_payment_id)
     WHERE dodo_payment_id IS NOT NULL;
+
+  CREATE INDEX IF NOT EXISTS idx_products_board
+    ON products(board, board_day, bid_count);
 `);
 
 // Listings that predate decay start their clock now rather than being
@@ -267,6 +272,8 @@ export type ProductRow = {
   bid_count: number;
   click_count: number;
   created_at: string;
+  board: string | null;
+  board_day: string | null;
 };
 
 export type BidKind = "bid" | "dump" | "sponsor" | "bike";

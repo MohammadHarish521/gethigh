@@ -119,6 +119,18 @@ export async function createDodoCheckout(input: {
   };
 }
 
+export function dodoErrorCode(error: unknown) {
+  if (!error || typeof error !== "object") return null;
+  const record = error as { error?: { code?: unknown }; code?: unknown };
+  if (typeof record.error?.code === "string" && record.error.code.trim()) {
+    return record.error.code.trim();
+  }
+  if (typeof record.code === "string" && record.code.trim()) {
+    return record.code.trim();
+  }
+  return null;
+}
+
 export function unwrapDodoWebhook(rawBody: string, headers: Record<string, string>) {
   const client = getDodoClient();
   const key = env("DODO_PAYMENTS_WEBHOOK_KEY");

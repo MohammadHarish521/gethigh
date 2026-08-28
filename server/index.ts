@@ -30,6 +30,7 @@ import {
   findPaymentForWebhook,
   getProductRank,
   hydrateListingCopy,
+  listLiveProducts,
   listRecentActivity,
   listRecentDumps,
   markWebhookProcessed,
@@ -48,6 +49,8 @@ import {
 import { assertProductionPayments, getDodoEnvironment, isDodoConfigured, unwrapDodoWebhook } from "./dodo.js";
 import { applyDecay, startDecayScheduler } from "./decay.js";
 import {
+  DAILY_MIN_BID,
+  DAILY_MIN_RAISE,
   DECAY_PER_DAY,
   DUMP_PREMIUM,
   MIN_BID,
@@ -57,6 +60,8 @@ import {
   dumpPrice,
   hostnameFromUrl,
   minimumNextBid,
+  parseBoard,
+  productBoard,
 } from "./ranking.js";
 import { isPlaceholderDescription } from "./listingMeta.js";
 import { fetchSiteIcon } from "./favicon.js";
@@ -192,6 +197,8 @@ app.get("/api/config", (_req, res) => {
     minBid: MIN_BID,
     minRaise: MIN_RAISE,
     minRaisePct: MIN_RAISE_PCT,
+    dailyMinBid: DAILY_MIN_BID,
+    dailyMinRaise: DAILY_MIN_RAISE,
     dumpPremium: DUMP_PREMIUM,
     decayPerDay: DECAY_PER_DAY,
     revenue,
@@ -265,29 +272,18 @@ app.get("/api/auth/me", (req, res) => {
 
 app.get(
   "/api/products",
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     applyDecay();
+    const board = parseBoard(req.query.board);
 
-    let rows = db
-      .prepare(
-        `SELECT * FROM products
-         WHERE bid_count > 0
-         ORDER BY current_bid DESC, current_bid_at DESC, created_at DESC`,
-      )
-      .all() as ProductRow[];
+    let rows = listLiveProducts(board);
 
     const stale = rows
       .filter((row) => isPlaceholderDescription(row.description))
       .slice(0, 4);
     if (stale.length > 0) {
       await Promise.all(stale.map((row) => hydrateListingCopy(row)));
-      rows = db
-        .prepare(
-          `SELECT * FROM products
-           WHERE bid_count > 0
-           ORDER BY current_bid DESC, current_bid_at DESC, created_at DESC`,
-        )
-        .all() as ProductRow[];
+      rows = listLiveProducts(board);
     }
 
     res.json({ products: rows.map((row, index) => toProductDto(row, index + 1)) });
@@ -371,6 +367,7 @@ app.post(
       logoUrl: String(req.body.logoUrl || ""),
       creatorName: String(req.body.creatorName || user.name),
       startingBid: req.body.startingBid,
+      board: req.body.board,
       userId: user.id,
       userEmail: user.email,
       userName: user.name,
@@ -412,9 +409,10 @@ app.post(
   }),
 );
 
-app.get("/api/dumps", (_req, res) => {
+app.get("/api/dumps", (req, res) => {
+  const board = parseBoard(req.query.board);
   res.json({
-    dumps: listRecentDumps().map((row) => ({
+    dumps: listRecentDumps(8, board).map((row) => ({
       id: row.id,
       amount: row.amount,
       rankBefore: row.dump_rank,
@@ -430,9 +428,10 @@ app.get("/api/dumps", (_req, res) => {
   });
 });
 
-app.get("/api/activity", (_req, res) => {
+app.get("/api/activity", (req, res) => {
+  const board = parseBoard(req.query.board);
   res.json({
-    activity: listRecentActivity().map((row) => ({
+    activity: listRecentActivity(12, board).map((row) => ({
       id: row.id,
       kind: row.kind === "dump" ? "dump" : "bid",
       amount: row.amount,
@@ -732,6 +731,10 @@ app.listen(PORT, () => {
     `Board economics: $${MIN_BID} floor · +${Math.round(MIN_RAISE_PCT * 100)}% min raise · ` +
       `${DUMP_PREMIUM}x dump · ${Math.round(DECAY_PER_DAY * 100)}%/day decay`,
   );
+  console.log(
+    `Today board: $${DAILY_MIN_BID} floor · +$${DAILY_MIN_RAISE} to climb · ` +
+      `${DUMP_PREMIUM}x dump · midnight reset`,
+  );
 });
 
 function findProduct(id: string) {
@@ -780,6 +783,7 @@ function boardClicks() {
 }
 
 function toProductDto(product: ProductRow, rank: number | null) {
+  const board = productBoard(product);
   return {
     id: product.id,
     name: product.name,
@@ -793,11 +797,15 @@ function toProductDto(product: ProductRow, rank: number | null) {
     currentBidAt: product.current_bid_at,
     bidCount: product.bid_count,
     clickCount: product.click_count ?? 0,
+    board,
     // A bid always takes #1, so the price to bid on any listing is the price
     // to clear the whole board — never just this listing's own next step.
-    minNextBid: Math.max(minimumNextBid(product.current_bid), boardEntryBid()),
-    dumpCost: dumpPrice(product.current_bid),
-    decayPerDay: decayPerDay(product.current_bid),
+    minNextBid: Math.max(
+      minimumNextBid(product.current_bid, board),
+      boardEntryBid(board),
+    ),
+    dumpCost: dumpPrice(product.current_bid, board),
+    decayPerDay: board === "today" ? 0 : decayPerDay(product.current_bid),
     rank,
     createdAt: product.created_at,
   };

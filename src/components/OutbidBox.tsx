@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { usePresence } from "../hooks/usePresence";
-import { MIN_RAISE } from "../lib/constants";
+import { minRaiseFor, type BoardKind } from "../lib/constants";
 import { formatMoney } from "../utils/format";
 
 type OutbidBoxProps = {
@@ -12,6 +12,7 @@ type OutbidBoxProps = {
   onSubmit: () => Promise<void> | void;
   error: string | null;
   existingBid?: number | null;
+  board?: BoardKind;
 };
 
 export function OutbidBox({
@@ -23,7 +24,9 @@ export function OutbidBox({
   onSubmit,
   error,
   existingBid = null,
+  board = "alltime",
 }: OutbidBoxProps) {
+  const step = minRaiseFor(board);
   const [paying, setPaying] = useState(false);
   const [draft, setDraft] = useState(() => String(amount));
   const presence = usePresence();
@@ -95,15 +98,16 @@ export function OutbidBox({
         </h1>
       </div>
       <p className="max-w-[520px] text-[16px] leading-[1.4] font-medium tracking-[-0.36px] text-muted sm:text-[18px]">
-        They hit $0 and last. Or bid {formatMoney(claimPrice)} to take #1
-        outright.
+        {board === "today"
+          ? `Today’s board resets at midnight. ${formatMoney(claimPrice)} takes #1. $1 to climb.`
+          : `They hit $0 and last. Or bid ${formatMoney(claimPrice)} to take #1 outright.`}
       </p>
 
       <div className="flex w-full max-w-[640px] flex-col items-center gap-2">
         <div className="flex items-end justify-center gap-[17px] pb-2">
           <StepButton
-            label={`Decrease bid by $${MIN_RAISE}`}
-            onClick={() => onAmount(Math.max(claimPrice, amount - MIN_RAISE))}
+            label={`Decrease bid by $${step}`}
+            onClick={() => onAmount(Math.max(claimPrice, amount - step))}
           >
             −
           </StepButton>
@@ -128,8 +132,8 @@ export function OutbidBox({
             </span>
           </label>
           <StepButton
-            label={`Increase bid by $${MIN_RAISE}`}
-            onClick={() => onAmount(amount + MIN_RAISE)}
+            label={`Increase bid by $${step}`}
+            onClick={() => onAmount(amount + step)}
           >
             +
           </StepButton>
@@ -176,7 +180,9 @@ export function OutbidBox({
       </div>
 
       <p className="max-w-[424px] text-[14px] leading-[1.4] font-medium tracking-[-0.3px] text-muted-strong">
-        {`This takes #1. ${chargeNote} Every spot bleeds 5% a day, so #1 only stays #1 while you feed it.`}
+        {board === "today"
+          ? `This takes #1. ${chargeNote} Today’s board wipes at midnight — same checkout, $2 to start, $1 to outbid.`
+          : `This takes #1. ${chargeNote} Every spot bleeds 5% a day, so #1 only stays #1 while you feed it.`}
       </p>
     </section>
   );

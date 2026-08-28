@@ -9,6 +9,7 @@ import { DumpSpotModal } from "../components/DumpSpotModal";
 import { EmptyState } from "../components/EmptyState";
 import { ProductLogo } from "../components/ProductLogo";
 import { RankNumber } from "../components/RankNumber";
+import { boardHomePath } from "../lib/constants";
 import type { BidHistoryItem, Product } from "../types";
 import {
   clicksPerDollar,
@@ -94,7 +95,7 @@ export function ProductPage() {
   return (
     <div className="animate-fade-up mx-auto max-w-[792px]">
       <Link
-        to="/"
+        to={boardHomePath(product.board)}
         className="mb-4 inline-block px-1 text-[14px] font-medium tracking-[-0.26px] text-muted hover:text-fg hover:underline"
       >
         ← Leaderboard

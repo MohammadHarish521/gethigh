@@ -17,6 +17,7 @@ const {
   createBidCheckout,
   createDumpCheckout,
   createProductWithStartingBid,
+  listLiveProducts,
 } = await import("./bidding.js");
 const { DECAY_PER_DAY, dumpPrice, minimumNextBid } = await import("./ranking.js");
 
@@ -184,7 +185,11 @@ const boardTop = (
 ).top;
 const entry = boardEntryBid();
 
-async function listingRejected(startingBid: number, url: string) {
+async function listingRejected(
+  startingBid: number,
+  url: string,
+  board: "alltime" | "today" = "alltime",
+) {
   try {
     await createProductWithStartingBid({
       ...user,
@@ -194,6 +199,7 @@ async function listingRejected(startingBid: number, url: string) {
       logoUrl: "data:image/svg+xml;utf8,<svg/>",
       creatorName: "Tester",
       startingBid,
+      board,
     });
     return false;
   } catch {
@@ -369,6 +375,141 @@ check(
   "twelve tank spots and a goal equal to the location floors",
   BIKE_SPOTS.length === 12 && emptyTank.goal === expectedGoal,
   `${BIKE_SPOTS.length} spots, goal $${emptyTank.goal}`,
+);
+
+// --- Today board: $2 floor, $1 climb, same dump, isolated from all-time --
+check(
+  "today floor is $2",
+  minimumNextBid(0, "today") === 2,
+  `minimumNextBid(0, today) = ${minimumNextBid(0, "today")}`,
+);
+check(
+  "today climb is +$1",
+  minimumNextBid(10, "today") === 11,
+  `minimumNextBid(10, today) = ${minimumNextBid(10, "today")}`,
+);
+check(
+  "today dump is still 1.25×",
+  dumpPrice(10, "today") === 13,
+  `dumpPrice(10, today) = ${dumpPrice(10, "today")}`,
+);
+check(
+  "$1 is below today’s floor",
+  await listingRejected(1, "https://today-dollar-verify.example", "today"),
+  "$1 rejected",
+);
+
+const alltimeEntry = boardEntryBid("alltime");
+check(
+  "all-time entry stays well above today’s $2 floor",
+  alltimeEntry > 2,
+  `all-time entry $${alltimeEntry}`,
+);
+
+const daily = await createProductWithStartingBid({
+  ...user,
+  name: "Daily",
+  description: "Takes today at the $2 floor.",
+  url: "https://today-verify.example",
+  logoUrl: "data:image/svg+xml;utf8,<svg/>",
+  creatorName: "Tester",
+  startingBid: 2,
+  board: "today",
+});
+confirmPayment(daily.paymentId);
+
+check(
+  "$2 takes #1 on an empty today board",
+  priceOf(daily.productId!) === 2,
+  `today listing at $${priceOf(daily.productId!)}`,
+);
+check(
+  "a today listing does not appear on all-time",
+  !listLiveProducts("alltime").some((row) => row.id === daily.productId),
+  `${listLiveProducts("alltime").length} all-time listings`,
+);
+check(
+  "all-time entry is unchanged by a today bid",
+  boardEntryBid("alltime") === alltimeEntry,
+  `all-time entry still $${boardEntryBid("alltime")}`,
+);
+check(
+  "next today bid is $3",
+  boardEntryBid("today") === 3,
+  `today entry $${boardEntryBid("today")}`,
+);
+check(
+  "today will not take a $2 tie",
+  await listingRejected(2, "https://today-tie-verify.example", "today"),
+  "$2 rejected against a $2 today board",
+);
+
+const climb = await createBidCheckout({
+  ...user,
+  productId: daily.productId!,
+  amount: 3,
+});
+confirmPayment(climb.paymentId);
+check(
+  "$1 climb outbids on today",
+  priceOf(daily.productId!) === 3,
+  `today listing climbed to $${priceOf(daily.productId!)}`,
+);
+
+const todayDumpCost = dumpPrice(3, "today");
+const todayDump = await createDumpCheckout({
+  ...user,
+  productId: daily.productId!,
+  claimUrl: "https://today-dump-verify.example",
+});
+const todayDumpResult = confirmPayment(todayDump.paymentId);
+check(
+  "today dump charges 1.25× and knocks the victim to $0",
+  todayDumpCost === 4 &&
+    priceOf(daily.productId!) === 0 &&
+    (todayDumpResult.claimProduct?.current_bid ?? 0) === 4 &&
+    todayDumpResult.payment.amount === 4,
+  `dump $${todayDumpCost}, victim $${priceOf(daily.productId!)}, claim $${todayDumpResult.claimProduct?.current_bid}`,
+);
+
+const claimId = todayDumpResult.claimProduct!.id;
+const claimBeforeDecay = priceOf(claimId);
+db.prepare(
+  "UPDATE products SET decay_anchor = ?, decayed_at = ? WHERE id = ?",
+).run(
+  claimBeforeDecay,
+  new Date(Date.now() - 10 * 86_400_000).toISOString(),
+  claimId,
+);
+applyDecay({ force: true });
+check(
+  "today listings skip decay",
+  priceOf(claimId) === claimBeforeDecay,
+  `$${claimBeforeDecay} held at $${priceOf(claimId)} after a 10-day sweep`,
+);
+
+db.prepare("UPDATE products SET board_day = '1999-01-01' WHERE id = ?").run(
+  daily.productId,
+);
+check(
+  "yesterday’s today board is hidden",
+  !listLiveProducts("today").some((row) => row.id === daily.productId),
+  `${listLiveProducts("today").length} live today listings`,
+);
+let yesterdayClosed = false;
+try {
+  await createBidCheckout({
+    ...user,
+    productId: daily.productId!,
+    amount: 20,
+  });
+} catch {
+  yesterdayClosed = true;
+}
+check(
+  "bidding on yesterday’s board is closed",
+  yesterdayClosed,
+  yesterdayClosed ? "closed" : "still accepted bids",
 );
 
 // --- Recurring revenue on the real board --------------------------------
