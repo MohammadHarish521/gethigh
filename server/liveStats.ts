@@ -1,15 +1,28 @@
 import { db } from "./db.js";
-import { readPresence } from "./presence.js";
+import { readRawPresence } from "./presence.js";
 
 const DATAFAST_API = "https://datafa.st/api/v1";
 const CACHE_MS = 30_000;
 const PUBLIC_TRACKING_ID = "dfid_oNzdikU2lkcWAsFr4pFF7";
+const DATAFAST_SHARE_URL = "https://datafa.st/share/6a90099434650f40287c17ab";
+
+export type LiveSlice = {
+  live: number | null;
+  visitors: number | null;
+  views: number | null;
+  revenue: number | null;
+};
 
 export type LiveStats = {
   configured: boolean;
+  dashboardUrl: string | null;
+  websiteId: string;
+  board: LiveSlice;
+  datafast: LiveSlice;
+  live: number | null;
   visitors: number | null;
-  revenue: number | null;
   views: number | null;
+  revenue: number | null;
   updatedAt: string;
 };
 
@@ -40,12 +53,21 @@ export function isDataFastLiveConfigured() {
   return apiKey().length > 0;
 }
 
+function emptySlice(): LiveSlice {
+  return { live: null, visitors: null, views: null, revenue: null };
+}
+
 function emptyStats(partial?: Partial<LiveStats>): LiveStats {
   return {
     configured: isDataFastLiveConfigured(),
+    dashboardUrl: DATAFAST_SHARE_URL,
+    websiteId: PUBLIC_TRACKING_ID,
+    board: emptySlice(),
+    datafast: emptySlice(),
     visitors: null,
     revenue: null,
     views: null,
+    live: null,
     updatedAt: new Date().toISOString(),
     ...partial,
   };
@@ -94,6 +116,13 @@ function metric(record: Record<string, unknown>, ...keys: string[]) {
   return null;
 }
 
+function asCount(value: unknown, ...keys: string[]) {
+  const list = asList<Record<string, unknown>>(value);
+  const record = list[0] ?? asRecord(value);
+  if (!record) return null;
+  return metric(record, ...keys);
+}
+
 function asOverview(value: unknown) {
   const list = asList<Record<string, unknown>>(value);
   const record = list[0] ?? asRecord(value);
@@ -105,6 +134,12 @@ function asOverview(value: unknown) {
     revenue: metric(record, "revenue"),
     views: metric(record, "pageviews", "page_views", "views"),
   };
+}
+
+function dashboardUrlFrom() {
+  const explicit = process.env.DATAFAST_PUBLIC_URL?.trim();
+  if (explicit) return explicit.replace(/\/$/, "");
+  return DATAFAST_SHARE_URL;
 }
 
 function listingRevenue() {
@@ -180,33 +215,76 @@ async function websiteIdForToken(): Promise<string> {
 }
 
 async function fetchLiveStats(): Promise<LiveStats> {
-  const presence = readPresence();
+  const presence = readRawPresence();
   const listing = listingRevenue();
+  const board: LiveSlice = {
+    live: presence.live,
+    visitors: Math.round(presence.views / 5),
+    views: presence.views,
+    revenue: listing,
+  };
+
   let overview = { visitors: null as number | null, revenue: null as number | null, views: null as number | null };
+  let realtime: number | null = null;
 
   if (isDataFastLiveConfigured()) {
-    try {
-      overview = asOverview(
-        await datafastGet<unknown>("/analytics/overview", {
-          fields: "visitors,revenue,pageviews",
-        }),
-      );
-    } catch (error) {
+    const settled = await Promise.allSettled([
+      datafastGet<unknown>("/analytics/overview", {
+        fields: "visitors,revenue,pageviews",
+      }),
+      datafastGet<unknown>("/analytics/realtime", { fields: "visitors" }),
+    ]);
+
+    if (settled[0].status === "fulfilled") {
+      overview = asOverview(settled[0].value);
+    } else {
       console.warn(
         "DataFast overview failed:",
-        error instanceof Error ? error.message : error,
+        settled[0].reason instanceof Error
+          ? settled[0].reason.message
+          : settled[0].reason,
+      );
+    }
+
+    if (settled[1].status === "fulfilled") {
+      realtime = asCount(settled[1].value, "visitors", "count");
+    } else {
+      console.warn(
+        "DataFast realtime failed:",
+        settled[1].reason instanceof Error
+          ? settled[1].reason.message
+          : settled[1].reason,
       );
     }
   }
 
-  const boardVisitors = Math.round(presence.views / 5);
+  const datafast: LiveSlice = {
+    live: realtime,
+    visitors: overview.visitors,
+    views: overview.views,
+    revenue: overview.revenue,
+  };
+
+  const live = datafast.live ?? board.live;
+  const visitors = (board.visitors ?? 0) + (datafast.visitors ?? 0);
+  const views = Math.max(board.views ?? 0, datafast.views ?? 0);
+  const revenue = (board.revenue ?? 0) + (datafast.revenue ?? 0);
 
   return emptyStats({
-    configured: true,
-    visitors: boardVisitors + (overview.visitors ?? 0),
-    revenue: listing + (overview.revenue ?? 0),
-    views: Math.max(presence.views, overview.views ?? 0),
+    configured: isDataFastLiveConfigured(),
+    dashboardUrl: dashboardUrlFrom(),
+    websiteId: PUBLIC_TRACKING_ID,
+    board,
+    datafast,
+    live,
+    visitors,
+    views,
+    revenue,
   });
+}
+
+export function peekLiveStats(): LiveStats | null {
+  return cache?.stats ?? null;
 }
 
 export async function getLiveStats(): Promise<LiveStats> {

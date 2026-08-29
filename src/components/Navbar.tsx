@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { api } from "../api/client";
+import { DATAFAST_SHARE_URL } from "../lib/datafast";
 import { formatMoney, plural } from "../utils/format";
 
 export function Navbar() {
@@ -22,7 +23,7 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-30 px-3 pt-3 sm:px-6 sm:pt-4">
-      <div className="mx-auto flex w-full max-w-[792px] items-center justify-between gap-2 rounded-full bg-bg/85 py-[5px] pr-[5px] pl-4 backdrop-blur-md sm:pl-[23px]">
+      <div className="mx-auto flex w-full max-w-[860px] items-center justify-between gap-2 rounded-full bg-bg/85 py-[5px] pr-[5px] pl-4 backdrop-blur-md sm:pl-[23px]">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <Link to="/" className="flex shrink-0 items-center gap-1.5">
             <span className="font-display text-[20px] font-extrabold tracking-[-0.06em] text-fg-strong sm:text-[22px]">
@@ -61,8 +62,16 @@ export function Navbar() {
             Bike
           </NavLink>
           <NavLink to="/live" className={navClass}>
-            Live
+            Total stats
           </NavLink>
+          <a
+            href={DATAFAST_SHARE_URL}
+            target="_blank"
+            rel="noreferrer"
+            className={navClass({ isActive: false })}
+          >
+            Live stats
+          </a>
           <NavLink to="/how-it-works" className={navClass}>
             How it works
           </NavLink>
@@ -73,7 +82,7 @@ export function Navbar() {
 }
 
 function navClass({ isActive }: { isActive: boolean }) {
-  return `rounded-full px-2.5 py-2 text-[14px] leading-none font-medium whitespace-nowrap transition sm:px-3.5 sm:py-4 sm:text-[16px] ${
+  return `rounded-full px-2 py-2 text-[13px] leading-none font-medium whitespace-nowrap transition sm:px-3 sm:py-4 sm:text-[16px] ${
     isActive ? "font-bold text-fg-strong" : "text-muted hover:text-fg"
   }`;
 }

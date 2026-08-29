@@ -827,33 +827,45 @@ body {
 
 .dump-flip {
   position: relative;
-  display: inline-block;
-  max-width: 100%;
+  display: inline-grid;
+  flex-shrink: 0;
   vertical-align: bottom;
+  justify-items: center;
 }
 
 .dump-flip-sizer {
   visibility: hidden;
+  display: grid;
+  grid-template-areas: "stack";
+  justify-items: start;
+}
+
+.dump-flip-sizer > span,
+.dump-flip-live > span {
+  grid-area: stack;
   white-space: nowrap;
+}
+
+.dump-flip-sizer > span:last-child,
+.dump-flip-live > span:last-child {
+  font-size: 0.78em;
+  letter-spacing: -0.04em;
 }
 
 .dump-flip-live {
   position: absolute;
   inset: 0;
   display: grid;
+  grid-template-areas: "stack";
   place-items: center;
   overflow: hidden;
 }
 
 .dump-flip-live > span {
-  grid-area: 1 / 1;
-  white-space: nowrap;
   transition: opacity 0.18s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dump-flip-live > span:last-child {
-  font-size: 0.78em;
-  letter-spacing: -0.04em;
   opacity: 0;
 }
 

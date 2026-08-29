@@ -252,6 +252,7 @@ export function HomePage() {
             <RecentDumps
               dumps={dumps}
               onDumpTop={products[0] ? () => onDump(products[0]) : undefined}
+              dumpCost={products[0]?.dumpCost}
             />
             <TopClicks products={products} />
           </aside>

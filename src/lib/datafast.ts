@@ -3,6 +3,10 @@ import { initDataFast, type DataFastWeb } from "datafast";
 /** Public website ID from DataFast → Website Settings. Not a secret. */
 export const DATAFAST_WEBSITE_ID = "dfid_oNzdikU2lkcWAsFr4pFF7";
 
+/** Public DataFast dashboard. Website Settings → General → Public Dashboard. */
+export const DATAFAST_SHARE_URL =
+  "https://datafa.st/share/6a90099434650f40287c17ab";
+
 let client: DataFastWeb | null = null;
 let pending: Promise<DataFastWeb | null> | null = null;
 

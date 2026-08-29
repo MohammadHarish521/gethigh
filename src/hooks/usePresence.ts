@@ -4,7 +4,13 @@ import { api } from "../api/client";
 /** Must stay comfortably under the server's 90s online window. */
 const HEARTBEAT_MS = 20_000;
 
-export type Presence = { live: number; views: number };
+export type Presence = {
+  live: number;
+  views: number;
+  boardViews: number;
+  datafastViews: number | null;
+  source?: "datafast" | "board";
+};
 
 let counts: Presence | null = null;
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -16,8 +22,22 @@ async function beat() {
   inFlight = true;
   try {
     const next = await api.presence();
-    if (!counts || next.live !== counts.live || next.views !== counts.views) {
-      counts = next;
+    const normalized: Presence = {
+      live: next.live,
+      views: next.views,
+      boardViews: next.boardViews ?? next.views,
+      datafastViews: next.datafastViews ?? null,
+      source: next.source,
+    };
+    if (
+      !counts ||
+      normalized.live !== counts.live ||
+      normalized.views !== counts.views ||
+      normalized.boardViews !== counts.boardViews ||
+      normalized.datafastViews !== counts.datafastViews ||
+      normalized.source !== counts.source
+    ) {
+      counts = normalized;
       for (const listener of listeners) listener();
     }
   } catch {

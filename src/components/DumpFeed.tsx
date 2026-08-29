@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { ActivityItem, Product, RecentDump } from "../types";
 import { clicksPerDollar, formatMoney, formatTimeAgo } from "../utils/format";
-import { DumpFlipLabel } from "./DumpFlipLabel";
 import {
   clicksBadge,
   dumpBadge,
@@ -149,9 +148,11 @@ function ActivityNotice({
 export function RecentDumps({
   dumps,
   onDumpTop,
+  dumpCost,
 }: {
   dumps: RecentDump[];
   onDumpTop?: () => void;
+  dumpCost?: number | null;
 }) {
   const empty = dumps.length === 0;
 
@@ -187,7 +188,11 @@ export function RecentDumps({
               else window.scrollTo({ top: 0, behavior: "smooth" });
             }}
           >
-            {onDumpTop ? <DumpFlipLabel /> : "Claim #1"}
+            {onDumpTop
+              ? dumpCost
+                ? `Dump · ${formatMoney(dumpCost)}`
+                : "Dump"
+              : "Claim #1"}
           </button>
         </>
       ) : (
@@ -300,7 +305,11 @@ export function DumpFeed({
     <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
       <ActivityFeed items={activity} />
       <div className="flex flex-col gap-3">
-        <RecentDumps dumps={dumps} onDumpTop={onDumpTop} />
+        <RecentDumps
+          dumps={dumps}
+          onDumpTop={onDumpTop}
+          dumpCost={products[0]?.dumpCost}
+        />
         <TopClicks products={products} />
       </div>
     </div>

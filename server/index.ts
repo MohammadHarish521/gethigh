@@ -206,9 +206,20 @@ app.get("/api/config", (_req, res) => {
   });
 });
 
-app.post("/api/presence", (req, res) => {
-  res.json(recordPresence(req, res));
-});
+app.post(
+  "/api/presence",
+  asyncHandler(async (req, res) => {
+    const board = recordPresence(req, res);
+    const stats = await getLiveStats();
+    res.json({
+      live: stats.datafast.live ?? board.live,
+      views: stats.datafast.views ?? board.views,
+      boardViews: board.views,
+      datafastViews: stats.datafast.views,
+      source: stats.datafast.live != null ? "datafast" : "board",
+    });
+  }),
+);
 
 app.post(
   "/api/auth/register",

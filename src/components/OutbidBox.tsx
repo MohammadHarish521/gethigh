@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { usePresence } from "../hooks/usePresence";
 import { minRaiseFor, type BoardKind } from "../lib/constants";
 import { formatMoney } from "../utils/format";
@@ -71,21 +72,31 @@ export function OutbidBox({
 
   return (
     <section className="mx-auto flex max-w-[900px] flex-col items-center gap-[18px] px-4 text-center sm:px-[50px]">
-      <div className="glass-pill inline-flex max-w-full flex-nowrap items-center justify-center gap-x-2 whitespace-nowrap py-[2px] pr-[10px] pl-[3px] text-[13px] tracking-[-0.26px] text-muted sm:gap-x-2.5 sm:pr-[22px]">
+      <Link
+        to="/live"
+        className="glass-pill inline-flex max-w-full flex-wrap items-center justify-center gap-x-2 gap-y-1 py-[2px] pr-[10px] pl-[3px] text-[13px] tracking-[-0.26px] text-muted sm:flex-nowrap sm:gap-x-2.5 sm:pr-[22px] sm:whitespace-nowrap"
+      >
         <span className="chip-live-cta">
           <span
             className="live-dot inline-block h-2 w-2 rounded-full"
             aria-hidden="true"
           />
-          <b className="num font-bold">{presence?.live ?? "—"}</b> online now
+          Online{" "}
+          <b className="num font-bold">{presence?.live ?? "—"}</b>
         </span>
         <span>
           <b className="num font-bold text-fg">
-            {presence ? presence.views.toLocaleString("en-US") : "—"}
+            {formatCount(presence?.boardViews)}
           </b>{" "}
-          views so far
+          views before
         </span>
-      </div>
+        <span>
+          <b className="num font-bold text-fg">
+            {formatCount(presence?.datafastViews)}
+          </b>{" "}
+          after DataFast
+        </span>
+      </Link>
 
       <div className="@container w-full">
         <h1 className="font-display w-full text-[length:clamp(2.25rem,12.2cqi,4.5rem)] leading-[0.98] font-extrabold tracking-[-0.06em] text-fg">
@@ -186,6 +197,11 @@ export function OutbidBox({
       </p>
     </section>
   );
+}
+
+function formatCount(value: number | null | undefined) {
+  if (value == null) return "—";
+  return value.toLocaleString("en-US");
 }
 
 function parseAmount(raw: string, floor: number) {

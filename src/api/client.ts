@@ -73,7 +73,13 @@ export const api = {
       clicks: number;
     }>("/api/config"),
   presence: () =>
-    request<{ live: number; views: number }>("/api/presence", { method: "POST" }),
+    request<{
+      live: number;
+      views: number;
+      boardViews: number;
+      datafastViews: number | null;
+      source?: "datafast" | "board";
+    }>("/api/presence", { method: "POST" }),
   me: () => request<{ user: User | null }>("/api/auth/me"),
   login: (email: string, password: string) =>
     request<{ user: User }>("/api/auth/login", {

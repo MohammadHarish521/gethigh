@@ -18,6 +18,21 @@ const LAUNCH_KEY = "presence_launched_at";
 
 export type Presence = { live: number; views: number };
 
+/** Heartbeats and stored views with no cosmetic padding. */
+export function readRawPresence(now = Date.now()): Presence {
+  const online = db
+    .prepare("SELECT COUNT(*) AS n FROM visitors WHERE last_seen_at > ?")
+    .get(new Date(now - ONLINE_WINDOW_MS).toISOString()) as { n: number };
+  const views = db.prepare("SELECT value FROM counters WHERE key = ?").get(VIEWS_KEY) as
+    | { value: number }
+    | undefined;
+
+  return {
+    live: Number(online.n) || 0,
+    views: Number(views?.value) || 0,
+  };
+}
+
 function envNumber(name: string, fallback: number) {
   const raw = Number(process.env[name]);
   return Number.isFinite(raw) && raw >= 0 ? raw : fallback;
@@ -125,19 +140,13 @@ export function recordPresence(req: Request, res: Response): Presence {
     new Date(now - RETENTION_MS).toISOString(),
   );
 
-  return readPresence(now);
+  return readRawPresence(now);
 }
 
 export function readPresence(now = Date.now()): Presence {
-  const online = db
-    .prepare("SELECT COUNT(*) AS n FROM visitors WHERE last_seen_at > ?")
-    .get(new Date(now - ONLINE_WINDOW_MS).toISOString()) as { n: number };
-  const views = db.prepare("SELECT value FROM counters WHERE key = ?").get(VIEWS_KEY) as
-    | { value: number }
-    | undefined;
-
+  const raw = readRawPresence(now);
   return {
-    live: padLive(online.n, now),
-    views: padViews(views?.value ?? 0, now),
+    live: padLive(raw.live, now),
+    views: padViews(raw.views, now),
   };
 }

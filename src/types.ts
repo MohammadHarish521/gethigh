@@ -176,10 +176,22 @@ export type BikeAuction = {
   spots: BikeSpot[];
 };
 
+export type LiveSlice = {
+  live: number | null;
+  visitors: number | null;
+  views: number | null;
+  revenue: number | null;
+};
+
 export type LiveStats = {
   configured: boolean;
+  dashboardUrl: string | null;
+  websiteId: string;
+  board: LiveSlice;
+  datafast: LiveSlice;
   visitors: number | null;
   revenue: number | null;
   views: number | null;
+  live?: number | null;
   updatedAt: string;
 };

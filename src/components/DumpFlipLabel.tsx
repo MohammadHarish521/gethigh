@@ -11,14 +11,18 @@ export function DumpFlipLabel({
 }) {
   if (busy) return busyLabel;
 
-  const sized = cost != null ? `Dump · ${formatMoney(cost)}` : "Dump";
+  const idle = cost != null ? `Dump · ${formatMoney(cost)}` : "Dump";
+  const hover = "take this spot";
 
   return (
     <span className="dump-flip" aria-hidden="true">
-      <span className="dump-flip-sizer">{sized}</span>
-      <span className="dump-flip-live" aria-hidden="true">
-        <span>{sized}</span>
-        <span>take this spot</span>
+      <span className="dump-flip-sizer">
+        <span>{idle}</span>
+        <span>{hover}</span>
+      </span>
+      <span className="dump-flip-live">
+        <span>{idle}</span>
+        <span>{hover}</span>
       </span>
     </span>
   );

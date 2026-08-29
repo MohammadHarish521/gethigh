@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { DATAFAST_SHARE_URL } from "../lib/datafast";
 import { usePresence } from "../hooks/usePresence";
 import { Navbar } from "./Navbar";
 
@@ -23,8 +24,16 @@ export function Layout({ children }: { children: ReactNode }) {
             NS400Z tank
           </Link>
           <Link to="/live" className="hover:text-fg hover:underline">
-            Live
+            Total stats
           </Link>
+          <a
+            href={DATAFAST_SHARE_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-fg hover:underline"
+          >
+            Live stats
+          </a>
           <Link to="/" className="hover:text-fg hover:underline">
             Leaderboard
           </Link>
